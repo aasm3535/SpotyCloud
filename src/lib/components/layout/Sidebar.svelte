@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { Library, Plus, ArrowRight, Heart, ChevronRight, Music, Folder, ListMusic } from 'lucide-svelte';
+  import { Library, Plus, ArrowRight, Heart, ChevronRight, Music, Folder, ListMusic, Import } from 'lucide-svelte';
   import { getPlayer } from '$lib/stores/player.svelte';
   import { getLikedTracks } from '$lib/stores/liked.svelte';
   import { getPlaylists, createPlaylist } from '$lib/stores/playlists.svelte';
@@ -113,6 +113,15 @@
       <div>
         <p class="menu-title">Folder</p>
         <p class="menu-sub">Organize your playlists</p>
+      </div>
+    </button>
+    <button class="create-menu-item" onclick={() => { showCreateMenu = false; goto('/import'); }}>
+      <div class="create-menu-icon">
+        <Import class="w-5 h-5" />
+      </div>
+      <div>
+        <p class="menu-title">Import from Spotify</p>
+        <p class="menu-sub">Transfer tracks via CSV file</p>
       </div>
     </button>
   </div>

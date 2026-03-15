@@ -70,3 +70,20 @@ export function unlikeTrack(trackId: number) {
   likedTrackData.delete(trackId);
   saveAll();
 }
+
+/** Add multiple tracks at once, saving only once at the end */
+export function likeTracksBatch(tracks: SCTrack[]) {
+  const existingIds = new Set(likedTrackIds);
+  const newIds: number[] = [];
+  for (const track of tracks) {
+    if (!existingIds.has(track.id)) {
+      newIds.push(track.id);
+      likedTrackData.set(track.id, track);
+      existingIds.add(track.id);
+    }
+  }
+  if (newIds.length > 0) {
+    likedTrackIds = [...likedTrackIds, ...newIds];
+    saveAll();
+  }
+}

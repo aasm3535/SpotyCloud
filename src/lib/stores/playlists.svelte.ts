@@ -70,3 +70,15 @@ export function removeTrackFromPlaylist(playlistId: string, trackId: number) {
 export function getPlaylistById(id: string): Playlist | undefined {
   return playlists.find(p => p.id === id);
 }
+
+/** Add multiple tracks to a playlist at once, saving only once */
+export function addTracksToPlaylistBatch(playlistId: string, tracks: SCTrack[]) {
+  playlists = playlists.map(p => {
+    if (p.id !== playlistId) return p;
+    const existingIds = new Set(p.tracks.map(t => t.id));
+    const newTracks = tracks.filter(t => !existingIds.has(t.id));
+    if (newTracks.length === 0) return p;
+    return { ...p, tracks: [...p.tracks, ...newTracks] };
+  });
+  save();
+}
