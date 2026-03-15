@@ -6,6 +6,7 @@ import { isTrackDownloaded, getTrackFilePath } from './downloads.svelte';
 import Hls from 'hls.js';
 import { connectAudio } from './equalizer.svelte';
 import { getRelatedTracks } from '$lib/api/soundcloud';
+import { getLikedTracks } from './liked.svelte';
 
 // Read local file and create blob URL for playback
 async function getLocalFileUrl(filePath: string): Promise<string> {
@@ -75,6 +76,13 @@ let waveMode = $state(false);
 let waveDisliked = $state<Set<number>>(loadDisliked());
 let isWaveTrack = $state(false);
 
+// Wave algorithm state
+let wavePlayedIds = new Set<number>();       // All tracks played this wave session
+let waveRecentArtists: number[] = [];         // Recent artist IDs (ring buffer for diversity)
+let waveSeedIndex = 0;                        // Rotate through liked tracks as seeds
+const WAVE_ARTIST_COOLDOWN = 3;               // Min tracks between same artist
+const WAVE_MAX_FETCH_ATTEMPTS = 3;            // Max retries with different seeds
+
 function loadDisliked(): Set<number> {
   try {
     const s = localStorage.getItem('wave_disliked');
@@ -84,6 +92,55 @@ function loadDisliked(): Set<number> {
 
 function saveDisliked() {
   localStorage.setItem('wave_disliked', JSON.stringify([...waveDisliked]));
+}
+
+function resetWaveSession() {
+  wavePlayedIds = new Set();
+  waveRecentArtists = [];
+  waveSeedIndex = 0;
+}
+
+function trackArtistPlayed(artistId: number) {
+  waveRecentArtists.push(artistId);
+  // Keep only recent history
+  if (waveRecentArtists.length > 20) {
+    waveRecentArtists = waveRecentArtists.slice(-20);
+  }
+}
+
+function isArtistOnCooldown(artistId: number): boolean {
+  const recent = waveRecentArtists.slice(-WAVE_ARTIST_COOLDOWN);
+  return recent.includes(artistId);
+}
+
+// Pick a seed track for fetching related tracks — rotates through liked + recent queue
+function pickWaveSeed(): SCTrack | null {
+  const liked = getLikedTracks();
+  const likedTracks = liked.tracks;
+
+  // Build seed pool: liked tracks + recent queue tracks (for variety)
+  const seedPool: SCTrack[] = [];
+
+  // Add shuffled liked tracks
+  if (likedTracks.length > 0) {
+    const shuffled = [...likedTracks].sort(() => Math.random() - 0.5);
+    seedPool.push(...shuffled);
+  }
+
+  // Add recent queue tracks that aren't in liked (they bring fresh recommendations)
+  const likedIds = new Set(liked.ids);
+  const recentQueue = queue.slice(Math.max(0, queueIndex - 5), queueIndex + 1);
+  for (const t of recentQueue) {
+    if (!likedIds.has(t.id)) seedPool.push(t);
+  }
+
+  if (seedPool.length === 0) return null;
+
+  // Rotate through seed pool to avoid always using the same seed
+  waveSeedIndex = waveSeedIndex % seedPool.length;
+  const seed = seedPool[waveSeedIndex];
+  waveSeedIndex++;
+  return seed;
 }
 
 let audio: HTMLAudioElement | null = null;
@@ -149,6 +206,12 @@ async function loadAndPlay(track: SCTrack) {
   currentTrack = track;
   updateMediaSession();
   updateDiscordRpc(track);
+
+  // Track history for wave mode diversity
+  if (waveMode) {
+    wavePlayedIds.add(track.id);
+    trackArtistPlayed(track.user.id);
+  }
 
   try {
     console.log('Loading track:', track.title, 'ID:', track.id);
@@ -328,19 +391,59 @@ export async function next() {
   loadAndPlay(queue[nextIdx]);
 }
 
-async function fetchWaveTracks(seedTrack: SCTrack) {
-  try {
-    const related = await getRelatedTracks(seedTrack.id, 10);
-    const existingIds = new Set(queue.map(t => t.id));
-    const newTracks = related.filter(
-      t => !existingIds.has(t.id) && !waveDisliked.has(t.id) && t.streamable && t.access !== 'blocked'
-    );
-    if (newTracks.length > 0) {
-      queue = [...queue, ...newTracks];
+async function fetchWaveTracks(_seedTrack: SCTrack) {
+  const existingIds = new Set(queue.map(t => t.id));
+
+  for (let attempt = 0; attempt < WAVE_MAX_FETCH_ATTEMPTS; attempt++) {
+    try {
+      const seed = pickWaveSeed();
+      if (!seed) {
+        console.warn('[Wave] No seed tracks available');
+        return;
+      }
+
+      console.log(`[Wave] Fetching related tracks (attempt ${attempt + 1}) seed: "${seed.title}" by ${seed.user.username}`);
+      const related = await getRelatedTracks(seed.id, 15);
+
+      // Filter: no duplicates, no disliked, no already-played, streamable
+      const candidates = related.filter(t =>
+        !existingIds.has(t.id) &&
+        !wavePlayedIds.has(t.id) &&
+        !waveDisliked.has(t.id) &&
+        t.streamable &&
+        t.access !== 'blocked'
+      );
+
+      // Apply artist diversity: prefer tracks from artists not recently played
+      const diverse: SCTrack[] = [];
+      const fallback: SCTrack[] = [];
+
+      for (const t of candidates) {
+        if (!isArtistOnCooldown(t.user.id)) {
+          diverse.push(t);
+        } else {
+          fallback.push(t);
+        }
+      }
+
+      // Take diverse tracks first, then fill with fallback if needed
+      const newTracks = [...diverse, ...fallback].slice(0, 8);
+
+      if (newTracks.length > 0) {
+        queue = [...queue, ...newTracks];
+        // Mark them in existing set for next iteration
+        for (const t of newTracks) existingIds.add(t.id);
+        console.log(`[Wave] Added ${newTracks.length} tracks (${diverse.length} diverse, ${Math.min(fallback.length, newTracks.length - diverse.length)} fallback)`);
+        return;
+      }
+
+      console.log('[Wave] No new tracks from this seed, trying another...');
+    } catch (e) {
+      console.error(`[Wave] Fetch attempt ${attempt + 1} failed:`, e);
     }
-  } catch (e) {
-    console.error('[Wave] Failed to fetch tracks:', e);
   }
+
+  console.warn('[Wave] All fetch attempts exhausted');
 }
 
 export function prev() {
@@ -395,6 +498,9 @@ export function toggleShuffle() {
 }
 
 export function startWave(seedTracks: SCTrack[]) {
+  // Reset wave session tracking
+  resetWaveSession();
+
   waveMode = true;
   isWaveTrack = true;
   queue = [...seedTracks];
@@ -405,6 +511,7 @@ export function startWave(seedTracks: SCTrack[]) {
 export function stopWave() {
   waveMode = false;
   isWaveTrack = false;
+  resetWaveSession();
 }
 
 export function waveDislike(trackId: number) {

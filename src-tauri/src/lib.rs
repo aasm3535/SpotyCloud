@@ -263,6 +263,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             greet, 
             show_window, 
@@ -276,6 +277,10 @@ pub fn run() {
             track_exists_locally
         ])
         .setup(|app| {
+            // Auto-updater
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+
             let show = MenuItem::with_id(app, "show", "Show SpotyCloud", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;

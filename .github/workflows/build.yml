@@ -77,6 +77,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: ${{ needs.version.outputs.tag }}
           releaseName: 'SpotyCloud ${{ needs.version.outputs.tag }}'
@@ -90,6 +92,10 @@ jobs:
             | Windows | `.msi` or `.exe` |
             | macOS (Apple Silicon) | `.dmg` |
             | macOS (Intel) | `.dmg` |
+
+            ---
+            _This release includes auto-update support. Existing users will be notified automatically._
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
           args: --target ${{ matrix.target }}

@@ -25,6 +25,9 @@
     },
     "fs:allow-document-read-recursive",
     "fs:allow-document-write-recursive",
-    "fs:allow-document-meta-recursive"
+    "fs:allow-document-meta-recursive",
+    "updater:default",
+    "process:allow-restart",
+    "process:allow-exit"
   ]
 }

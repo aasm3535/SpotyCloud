@@ -10,6 +10,7 @@
   import { initOnboarding, getOnboarding } from '$lib/stores/onboarding.svelte';
   import { initUsername } from '$lib/stores/username.svelte';
   import Onboarding from '$lib/components/layout/Onboarding.svelte';
+  import UpdateNotification from '$lib/components/layout/UpdateNotification.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -47,6 +48,7 @@
 </script>
 
 <div class="h-screen w-screen flex flex-col bg-black overflow-hidden">
+  <UpdateNotification />
   <div class="shrink-0">
     <TitleBar />
   </div>
