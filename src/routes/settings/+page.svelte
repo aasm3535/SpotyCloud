@@ -5,14 +5,16 @@
   import { getEqualizer, setBandGain, applyPreset, toggleEq, type PresetName } from '$lib/stores/equalizer.svelte';
   import { getSettings, setAlwaysCollapsedSidebar } from '$lib/stores/settings.svelte';
   import { Check, Copy, AlertCircle, Music, ExternalLink, Terminal, MousePointer, Info, Link, RotateCcw, AudioLines, PanelLeftClose } from 'lucide-svelte';
-  import { getVersion } from '@tauri-apps/api/app';
   import { onMount } from 'svelte';
 
   const auth = getAuth();
   let appVersion = $state('...');
 
   onMount(async () => {
-    try { appVersion = await getVersion(); } catch { appVersion = '0.2.0'; }
+    try {
+      const { getVersion } = await import('@tauri-apps/api/app');
+      appVersion = await getVersion();
+    } catch { appVersion = '?'; }
   });
   const eq = getEqualizer();
   const appSettings = getSettings();
