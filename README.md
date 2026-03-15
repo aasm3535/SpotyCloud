@@ -1,12 +1,15 @@
 <div align="center">
 
+<img src="static/icon.svg" width="120" alt="SpotyCloud" />
+
 # SpotyCloud
 
 A desktop SoundCloud player with a Spotify-inspired interface.
 
+[![Build](https://img.shields.io/github/actions/workflow/status/aasm3535/SpotyCloud/build.yml?style=flat-square&logo=github&label=Build)](https://github.com/aasm3535/SpotyCloud/actions)
+[![Release](https://img.shields.io/github/v/release/aasm3535/SpotyCloud?style=flat-square&label=Release&color=1db954)](https://github.com/aasm3535/SpotyCloud/releases)
 [![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
 [![Svelte](https://img.shields.io/badge/Svelte-5-FF3E00?style=flat-square&logo=svelte&logoColor=white)](https://svelte.dev)
-[![SvelteKit](https://img.shields.io/badge/SvelteKit-2-FF3E00?style=flat-square&logo=svelte&logoColor=white)](https://kit.svelte.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Rust](https://img.shields.io/badge/Rust-stable-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
@@ -16,6 +19,32 @@ A desktop SoundCloud player with a Spotify-inspired interface.
 **SpotyCloud** is a native desktop application that streams music from SoundCloud through a clean, familiar interface. Built with Tauri v2 for performance and a small footprint.
 
 </div>
+
+---
+
+## Installation
+
+### Download
+
+Grab the latest installer from the [Releases](https://github.com/aasm3535/SpotyCloud/releases) page.
+
+| Platform | Format |
+|----------|--------|
+| Windows | `.msi` / `.exe` |
+| macOS (Apple Silicon) | `.dmg` |
+| macOS (Intel) | `.dmg` |
+
+### Build from source
+
+Requires [Rust](https://rustup.rs) (stable) and [Bun](https://bun.sh) (or Node.js 18+).
+
+```bash
+git clone https://github.com/aasm3535/SpotyCloud.git
+cd SpotyCloud
+bun install
+bun run tauri dev      # development
+bun run tauri build    # production build
+```
 
 ---
 
@@ -85,29 +114,6 @@ A desktop SoundCloud player with a Spotify-inspired interface.
 
 ---
 
-## Prerequisites
-
-- [Rust](https://rustup.rs) (stable)
-- [Bun](https://bun.sh) (or Node.js 18+)
-- A SoundCloud `client_id` (the app guides you through extracting one)
-
-## Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/de3troit/SpotyCloud.git
-cd SpotyCloud
-
-# Install dependencies
-bun install
-
-# Run in development mode
-bun run tauri dev
-
-# Build for production
-bun run tauri build
-```
-
 ## How It Works
 
 SpotyCloud connects to the SoundCloud public API using a `client_id` extracted from the SoundCloud web app. No account login or OAuth is required. The app provides a guided setup process — either through a console script or manual extraction from browser network requests.
@@ -129,6 +135,25 @@ src/                    # SvelteKit frontend
 src-tauri/              # Tauri / Rust backend
   src/lib.rs            # Commands (download, Discord RPC, system info)
 ```
+
+---
+
+## CI / CD
+
+Releases are built automatically via GitHub Actions on every version tag (`v*`). The workflow compiles native installers for:
+
+- Windows x64 (`.msi`, `.exe`)
+- macOS ARM64 / Apple Silicon (`.dmg`)
+- macOS x64 / Intel (`.dmg`)
+
+To create a release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+A draft release with all platform binaries will appear on the [Releases](https://github.com/aasm3535/SpotyCloud/releases) page.
 
 ---
 
