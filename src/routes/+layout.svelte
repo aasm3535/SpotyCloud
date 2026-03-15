@@ -28,9 +28,10 @@
   const auth = getAuth();
   const headerColor = getHeaderColor();
   const onboarding = getOnboarding();
+  let storageReady = $state(false);
 
   onMount(async () => {
-    // Initialize persistent file storage (migrates localStorage data)
+    // 1. Load all data from persistent file storage (migrates localStorage)
     await initStorage();
     await Promise.all([
       initLiked(),
@@ -39,17 +40,18 @@
       initAuthStorage(),
     ]);
 
+    // 2. NOW init auth/onboarding (after file data is loaded)
+    initAuth();
+    initOnboarding();
+    initUsername();
+
+    storageReady = true;
+
     invoke('show_window');
   });
 
   $effect(() => {
-    initAuth();
-    initOnboarding();
-    initUsername();
-  });
-
-  $effect(() => {
-    if (!auth.isAuthenticated && $page.url.pathname !== '/settings') {
+    if (storageReady && !auth.isAuthenticated && $page.url.pathname !== '/settings') {
       goto('/settings');
     }
   });

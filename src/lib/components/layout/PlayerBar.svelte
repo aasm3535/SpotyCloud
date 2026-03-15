@@ -99,14 +99,12 @@
             <p class="marquee-text text-[13px] font-medium text-white hover:underline cursor-pointer leading-tight">{player.currentTrack.title}</p>
           </div>
           <button
-            class="like-btn shrink-0 {liked ? 'text-[#1db954]' : 'text-[#b3b3b3] hover:text-white'}"
+            class="like-btn shrink-0 {liked ? 'text-[#1db954]' : player.isWaveTrack ? 'text-[#b3b3b3] hover:text-[#1db954] wave-heart' : 'text-[#b3b3b3] hover:text-white'}"
             title={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
             onclick={handleLike}
           >
             {#if liked}
-              <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M0 8a8 8 0 1116 0A8 8 0 010 8zm11.748-1.97a.75.75 0 00-1.06-1.06l-4.47 4.47-1.405-1.406a.75.75 0 10-1.061 1.06l2.466 2.467 5.53-5.53z"/>
-              </svg>
+              <Heart class="w-3.5 h-3.5 fill-current" />
             {:else}
               <Heart class="w-3.5 h-3.5" />
             {/if}
@@ -246,7 +244,7 @@
 
     <div class="volume-bar group">
       <div class="vol-track">
-        <div class="vol-fill group-hover:bg-[#1db954]" style="width: {player.volume * 100}%">
+        <div class="vol-fill" style="width: {player.volume * 100}%">
           <div class="vol-thumb"></div>
         </div>
       </div>
@@ -288,6 +286,16 @@
   }
   .like-btn:hover {
     transform: scale(1.15);
+  }
+  .wave-heart {
+    animation: wave-pulse 2s ease-in-out 1;
+  }
+  @keyframes wave-pulse {
+    0%, 100% { transform: scale(1); }
+    15% { transform: scale(1.3); color: #1db954; }
+    30% { transform: scale(1); }
+    45% { transform: scale(1.2); color: #1db954; }
+    60% { transform: scale(1); }
   }
 
   .wave-badge {
@@ -421,6 +429,9 @@
     border-radius: 2px;
     position: relative;
     transition: background-color 0.15s;
+  }
+  .volume-bar:hover .vol-fill {
+    background: #1db954;
   }
   .vol-thumb {
     position: absolute;
