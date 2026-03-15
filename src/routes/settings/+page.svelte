@@ -35,24 +35,19 @@
   let activeTab = $state<'script' | 'manual'>('script');
 
   const extractScript = `// Paste in Console on soundcloud.com (F12 > Console)
-fetch(location.href).then(r=>r.text()).then(function(h){
-  var re1 = /src="(https:\\/\\/a-v2\\.sndcdn\\.com\\/assets\\/[^"]+)"/g;
-  var scripts = [], m;
-  while (m = re1.exec(h)) scripts.push(m[1]);
-  Promise.all(scripts.slice(0,5).map(function(u){
-    return fetch(u).then(function(r){return r.text()})
-  })).then(function(texts){
-    var all = texts.join('');
-    var found = all.match(/client_id:"([a-zA-Z0-9]{32})"/);
-    if (found) {
-      copy(found[1]);
-      console.log('%c' + found[1], 'color:#1db954;font-size:20px;font-weight:bold');
-      console.log('%cCopied to clipboard!', 'color:#1db954;font-size:14px');
-    } else {
-      console.log('%cNot found, try manual method', 'color:red;font-size:14px');
+(function(){
+  var e = performance.getEntriesByType("resource");
+  for (var i = 0; i < e.length; i++) {
+    var m = e[i].name.match(/client_id=([a-zA-Z0-9]{20,})/);
+    if (m) {
+      copy(m[1]);
+      console.log("%c" + m[1], "color:#1db954;font-size:20px;font-weight:bold");
+      console.log("%cCopied to clipboard!", "color:#1db954;font-size:14px");
+      return;
     }
-  })
-})`;
+  }
+  console.log("%cNot found. Reload the page and try again.", "color:red;font-size:14px");
+})()`;
 
   function copyScript() {
     navigator.clipboard.writeText(extractScript.trim());

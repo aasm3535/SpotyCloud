@@ -1,351 +1,409 @@
 <script lang="ts">
   import { completeOnboarding } from '$lib/stores/onboarding.svelte';
-  import { Music, Search, Heart, ListMusic, Keyboard, ArrowRight } from 'lucide-svelte';
+  import { login, getAuth } from '$lib/stores/auth.svelte';
+  import { goto } from '$app/navigation';
+  import { Search, Heart, ListMusic, Music, ArrowRight, ArrowLeft, Check, Copy, AlertCircle, Terminal, MousePointer, ExternalLink, KeyRound, Plug } from 'lucide-svelte';
 
+  const auth = getAuth();
   let currentStep = $state(0);
-  let isClosing = $state(false);
+  const totalSteps = 3;
 
-  const steps = [
-    {
-      title: 'Welcome to SpotyCloud',
-      subtitle: 'Your personal SoundCloud desktop player',
-      description: 'Stream millions of tracks, create playlists, and enjoy music — all from your desktop.',
-      icon: 'logo',
-    },
-    {
-      title: 'Connect to SoundCloud',
-      subtitle: 'One-time setup',
-      description: 'To stream music, you\'ll need a SoundCloud Client ID. Don\'t worry — we\'ll guide you through getting one in Settings.',
-      icon: 'key',
-    },
-    {
-      title: 'Search & Discover',
-      subtitle: 'Find any track',
-      description: 'Search for any song, artist, or genre on SoundCloud. Browse categories or type in the search bar.',
-      icon: 'search',
-    },
-    {
-      title: 'Your Library',
-      subtitle: 'Playlists & Liked Songs',
-      description: 'Like tracks to save them, create custom playlists, and organize your music collection your way.',
-      icon: 'library',
-    },
-    {
-      title: 'You\'re all set!',
-      subtitle: 'Let\'s get started',
-      description: 'Head to Settings to connect your SoundCloud account, then start exploring.',
-      icon: 'ready',
-    },
-  ];
+  let clientIdInput = $state('');
+  let isTestingConnection = $state(false);
+  let connectionStatus = $state<'idle' | 'success' | 'error'>('idle');
+  let errorMessage = $state('');
+  let copiedScript = $state(false);
+  let activeTab = $state<'script' | 'manual'>('script');
 
-  function dismiss() {
-    isClosing = true;
-    setTimeout(() => {
-      completeOnboarding();
-    }, 400);
+  const extractScript = `// Paste in Console on soundcloud.com (F12 > Console)
+(function(){
+  var e = performance.getEntriesByType("resource");
+  for (var i = 0; i < e.length; i++) {
+    var m = e[i].name.match(/client_id=([a-zA-Z0-9]{20,})/);
+    if (m) {
+      copy(m[1]);
+      console.log("%c" + m[1], "color:#1db954;font-size:20px;font-weight:bold");
+      console.log("%cCopied to clipboard!", "color:#1db954;font-size:14px");
+      return;
+    }
+  }
+  console.log("%cNot found. Reload the page and try again.", "color:red;font-size:14px");
+})()`;
+
+  function copyScript() {
+    navigator.clipboard.writeText(extractScript.trim());
+    copiedScript = true;
+    setTimeout(() => copiedScript = false, 2000);
   }
 
-  function next() {
-    if (currentStep < steps.length - 1) {
-      currentStep++;
-    } else {
-      dismiss();
+  async function handleConnect() {
+    if (!clientIdInput.trim()) return;
+    isTestingConnection = true;
+    connectionStatus = 'idle';
+    errorMessage = '';
+    try {
+      const result = await login(clientIdInput.trim());
+      if (result.success) {
+        connectionStatus = 'success';
+      } else {
+        connectionStatus = 'error';
+        errorMessage = result.error || 'Invalid client_id';
+      }
+    } catch (e) {
+      connectionStatus = 'error';
+      errorMessage = e instanceof Error ? e.message : 'Connection failed';
+    } finally {
+      isTestingConnection = false;
     }
   }
 
-  function skip() {
-    dismiss();
+  function finish() {
+    completeOnboarding();
+    if (auth.isAuthenticated) goto('/');
+  }
+
+  function next() {
+    if (currentStep < totalSteps - 1) currentStep++;
+    else finish();
+  }
+
+  function prev() {
+    if (currentStep > 0) currentStep--;
   }
 </script>
 
-<div class="onboarding-overlay" class:closing={isClosing}>
-  <div class="onboarding-container">
-    <!-- Skip button -->
-    <button class="skip-btn" onclick={skip}>
-      Skip intro
+<div class="max-w-2xl mx-auto">
+  <!-- Header -->
+  <div class="mb-6">
+    <h1 class="text-3xl font-bold text-white mb-2">
+      {#if currentStep === 0}Welcome{:else if currentStep === 1}Setup{:else}Connect{/if}
+    </h1>
+    <p class="text-[#b3b3b3]">
+      {#if currentStep === 0}Get started with SpotyCloud{:else if currentStep === 1}Get your SoundCloud Client ID{:else}Connect your account{/if}
+    </p>
+  </div>
+
+  <!-- Step tabs -->
+  <div class="flex gap-2 mb-6">
+    <button class="section-tab" class:section-tab-active={currentStep === 0} onclick={() => currentStep = 0}>
+      <Music class="w-4 h-4" />
+      Welcome
     </button>
+    <button class="section-tab" class:section-tab-active={currentStep === 1} onclick={() => currentStep = 1}>
+      <KeyRound class="w-4 h-4" />
+      Get Key
+    </button>
+    <button class="section-tab" class:section-tab-active={currentStep === 2} onclick={() => currentStep = 2}>
+      <Plug class="w-4 h-4" />
+      Connect
+    </button>
+  </div>
 
-    <!-- Step content -->
-    <div class="step-content">
-      <!-- Icon -->
-      <div class="step-icon">
-        {#if steps[currentStep].icon === 'logo'}
-          <div class="icon-circle icon-green">
-            <svg class="w-12 h-12 text-black" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/>
-            </svg>
-          </div>
-        {:else if steps[currentStep].icon === 'key'}
-          <div class="icon-circle icon-orange">
-            <Keyboard class="w-10 h-10 text-black" />
-          </div>
-        {:else if steps[currentStep].icon === 'search'}
-          <div class="icon-circle icon-blue">
-            <Search class="w-10 h-10 text-black" />
-          </div>
-        {:else if steps[currentStep].icon === 'library'}
-          <div class="icon-circle icon-purple">
-            <ListMusic class="w-10 h-10 text-white" />
-          </div>
-        {:else}
-          <div class="icon-circle icon-green">
-            <ArrowRight class="w-10 h-10 text-black" />
-          </div>
-        {/if}
+  <div class="space-y-6">
+    <!-- Step 0: Welcome -->
+    {#if currentStep === 0}
+    <div class="bg-[#181818] rounded-lg p-6">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-[#1db954] to-[#1ed760] flex items-center justify-center shadow-lg">
+          <svg class="w-8 h-8 text-black" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-white font-bold text-lg">SpotyCloud</p>
+          <p class="text-[#b3b3b3] text-sm">Your desktop SoundCloud player</p>
+        </div>
+      </div>
+      <p class="text-sm text-[#b3b3b3] leading-relaxed mb-6">
+        Stream millions of tracks, create playlists, and enjoy music — all from your desktop. To get started, you'll need to connect a SoundCloud Client ID.
+      </p>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex items-center gap-3 p-3 bg-[#282828]/50 rounded-lg">
+          <Search class="w-5 h-5 text-[#1db954] shrink-0" />
+          <span class="text-sm text-[#e0e0e0]">Search tracks</span>
+        </div>
+        <div class="flex items-center gap-3 p-3 bg-[#282828]/50 rounded-lg">
+          <Heart class="w-5 h-5 text-[#1db954] shrink-0" />
+          <span class="text-sm text-[#e0e0e0]">Like songs</span>
+        </div>
+        <div class="flex items-center gap-3 p-3 bg-[#282828]/50 rounded-lg">
+          <ListMusic class="w-5 h-5 text-[#1db954] shrink-0" />
+          <span class="text-sm text-[#e0e0e0]">Create playlists</span>
+        </div>
+        <div class="flex items-center gap-3 p-3 bg-[#282828]/50 rounded-lg">
+          <Music class="w-5 h-5 text-[#1db954] shrink-0" />
+          <span class="text-sm text-[#e0e0e0]">Stream music</span>
+        </div>
+      </div>
+    </div>
+    {/if}
+
+    <!-- Step 1: Get Key -->
+    {#if currentStep === 1}
+    <div class="bg-[#181818] rounded-lg p-6">
+      <h2 class="text-lg font-bold text-white mb-4">How to get your Client ID</h2>
+
+      <!-- Method Tabs -->
+      <div class="flex gap-1 mb-6 bg-[#0a0a0a] rounded-lg p-1">
+        <button
+          onclick={() => activeTab = 'script'}
+          class="method-tab" class:method-tab-active={activeTab === 'script'}
+        >
+          <Terminal class="w-4 h-4" />
+          Script (Easy)
+        </button>
+        <button
+          onclick={() => activeTab = 'manual'}
+          class="method-tab" class:method-tab-active={activeTab === 'manual'}
+        >
+          <MousePointer class="w-4 h-4" />
+          Manual
+        </button>
       </div>
 
-      <!-- Text -->
-      <div class="step-text">
-        <p class="step-subtitle">{steps[currentStep].subtitle}</p>
-        <h1 class="step-title">{steps[currentStep].title}</h1>
-        <p class="step-description">{steps[currentStep].description}</p>
-      </div>
+      {#if activeTab === 'script'}
+        <div class="space-y-4">
+          <ol class="space-y-3 text-sm text-[#b3b3b3]">
+            <li class="flex gap-3">
+              <span class="step-num">1</span>
+              <span>Open <a href="https://soundcloud.com" target="_blank" class="text-[#1db954] hover:underline inline-flex items-center gap-1">soundcloud.com <ExternalLink class="w-3 h-3" /></a></span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">2</span>
+              <span>Press <kbd class="px-2 py-0.5 bg-[#282828] rounded text-xs font-mono">F12</kbd> → go to <strong class="text-white">Console</strong> tab</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">3</span>
+              <span>Paste the script below and press <kbd class="px-2 py-0.5 bg-[#282828] rounded text-xs font-mono">Enter</kbd></span>
+            </li>
+          </ol>
 
-      <!-- Features list on first step -->
-      {#if currentStep === 0}
-        <div class="features-grid">
-          <div class="feature-item">
-            <Search class="w-5 h-5 text-[#1db954]" />
-            <span>Search tracks</span>
+          <div class="relative">
+            <pre class="p-4 bg-[#0a0a0a] rounded-lg overflow-x-auto text-xs font-mono text-[#b3b3b3] leading-relaxed border border-[#282828] max-h-24 overflow-y-auto">{extractScript}</pre>
+            <button
+              onclick={copyScript}
+              class="absolute top-2 right-2 text-sm px-3 py-1.5 bg-[#282828] hover:bg-[#3e3e3e] text-white rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              {#if copiedScript}
+                <Check class="w-3.5 h-3.5" /> Copied!
+              {:else}
+                <Copy class="w-3.5 h-3.5" /> Copy
+              {/if}
+            </button>
           </div>
-          <div class="feature-item">
-            <Heart class="w-5 h-5 text-[#1db954]" />
-            <span>Like songs</span>
+
+          <div class="p-3 bg-[#ffa42b]/10 border border-[#ffa42b]/20 rounded-lg">
+            <p class="text-[13px] text-[#ffa42b]">
+              <span class="font-bold">Note:</span> If the console says "allow pasting", type <kbd class="px-1.5 py-0.5 bg-[#282828] rounded text-xs font-mono">allow pasting</kbd> and press Enter first.
+            </p>
           </div>
-          <div class="feature-item">
-            <ListMusic class="w-5 h-5 text-[#1db954]" />
-            <span>Create playlists</span>
-          </div>
-          <div class="feature-item">
-            <Music class="w-5 h-5 text-[#1db954]" />
-            <span>Stream music</span>
+        </div>
+      {:else}
+        <div class="space-y-4">
+          <ol class="space-y-3 text-sm text-[#b3b3b3]">
+            <li class="flex gap-3">
+              <span class="step-num">1</span>
+              <span>Open <a href="https://soundcloud.com" target="_blank" class="text-[#1db954] hover:underline inline-flex items-center gap-1">soundcloud.com <ExternalLink class="w-3 h-3" /></a> and log in</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">2</span>
+              <span>Press <kbd class="px-2 py-0.5 bg-[#282828] rounded text-xs font-mono">F12</kbd> → go to <strong class="text-white">Network</strong> tab</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">3</span>
+              <span>Play any track on SoundCloud</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">4</span>
+              <span>In the Network tab filter, type <kbd class="px-2 py-0.5 bg-[#282828] rounded text-xs font-mono">api-v2</kbd></span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">5</span>
+              <span>Click on any request → look at the URL</span>
+            </li>
+            <li class="flex gap-3">
+              <span class="step-num">6</span>
+              <span>Find <kbd class="px-2 py-0.5 bg-[#282828] rounded text-xs font-mono">client_id=XXXXXXXX</kbd> in the URL</span>
+            </li>
+          </ol>
+
+          <div class="p-3 bg-white/5 rounded-lg">
+            <p class="text-xs font-mono text-[#b3b3b3] break-all">
+              Example: https://api-v2.soundcloud.com/tracks?client_id=<span class="text-[#1db954] font-bold">aBcDeFgHiJkLmNoPqRsTuVwXyZ012345</span>&...
+            </p>
           </div>
         </div>
       {/if}
     </div>
+    {/if}
 
-    <!-- Bottom controls -->
-    <div class="step-controls">
-      <!-- Dots -->
-      <div class="step-dots">
-        {#each steps as _, i}
-          <button
-            class="dot"
-            class:dot-active={i === currentStep}
-            class:dot-done={i < currentStep}
-            onclick={() => currentStep = i}
-            aria-label="Go to step {i + 1}"
-          ></button>
-        {/each}
+    <!-- Step 2: Connect -->
+    {#if currentStep === 2}
+    <div class="bg-[#181818] rounded-lg p-6">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-12 h-12 rounded-full bg-[#282828] flex items-center justify-center">
+          <Plug class="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h2 class="text-lg font-bold text-white">SoundCloud Connection</h2>
+          {#if connectionStatus === 'success'}
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-[#1db954]"></div>
+              <span class="text-sm text-[#1db954] font-medium">Connected</span>
+            </div>
+          {:else}
+            <p class="text-sm text-[#b3b3b3]">Paste your Client ID to start streaming</p>
+          {/if}
+        </div>
       </div>
 
-      <!-- Next / Get Started button -->
-      <button class="next-btn" onclick={next}>
-        {#if currentStep === steps.length - 1}
-          Get Started
-        {:else}
-          Next
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-white mb-2" for="ob-client-id">Client ID</label>
+          <input
+            id="ob-client-id"
+            type="text"
+            bind:value={clientIdInput}
+            placeholder="Paste your SoundCloud client_id..."
+            disabled={connectionStatus === 'success'}
+            class="w-full h-12 px-4 bg-[#121212] border border-[#282828] rounded-lg text-white placeholder:text-[#6a6a6a] focus:outline-none focus:border-white/30 transition-colors disabled:opacity-50"
+          />
+        </div>
+
+        {#if connectionStatus !== 'success'}
+          <button
+            onclick={handleConnect}
+            disabled={isTestingConnection || !clientIdInput.trim()}
+            class="h-12 px-8 bg-[#1db954] hover:bg-[#1ed760] text-black font-bold rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isTestingConnection ? 'Connecting...' : 'Connect'}
+          </button>
         {/if}
-        <ArrowRight class="w-4 h-4" />
-      </button>
+
+        {#if connectionStatus === 'error'}
+          <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <div class="flex items-start gap-3">
+              <AlertCircle class="w-5 h-5 text-red-400 mt-0.5" />
+              <div>
+                <p class="text-sm text-red-400 font-medium">Connection failed</p>
+                <p class="text-sm text-red-400/80 mt-1">{errorMessage}</p>
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        {#if connectionStatus === 'success'}
+          <div class="p-4 bg-[#1db954]/10 border border-[#1db954]/20 rounded-lg">
+            <div class="flex items-center gap-3">
+              <Check class="w-5 h-5 text-[#1db954]" />
+              <p class="text-sm text-[#1db954] font-medium">Connected! Click "Start Listening" to begin.</p>
+            </div>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    {#if connectionStatus !== 'success'}
+    <div class="bg-[#181818] rounded-lg p-6">
+      <p class="text-sm text-[#b3b3b3]">Don't have a Client ID yet? Go back to the <button class="text-[#1db954] hover:underline font-medium" onclick={() => currentStep = 1}>Get Key</button> step for instructions.</p>
+    </div>
+    {/if}
+    {/if}
+
+    <!-- Navigation -->
+    <div class="flex items-center justify-between pt-2">
+      {#if currentStep > 0}
+        <button
+          onclick={prev}
+          class="flex items-center gap-2 h-10 px-5 text-[#b3b3b3] hover:text-white font-medium rounded-full hover:bg-white/10 transition-colors text-sm"
+        >
+          <ArrowLeft class="w-4 h-4" /> Back
+        </button>
+      {:else}
+        <div></div>
+      {/if}
+
+      <div class="flex items-center gap-3">
+        {#if currentStep < totalSteps - 1}
+          <button
+            onclick={finish}
+            class="h-10 px-5 text-[#6a6a6a] hover:text-[#b3b3b3] font-medium text-sm transition-colors"
+          >
+            Skip
+          </button>
+        {/if}
+        <button
+          onclick={next}
+          class="flex items-center gap-2 h-10 px-6 bg-white hover:bg-[#e0e0e0] text-black font-bold rounded-full transition-colors text-sm"
+        >
+          {#if currentStep === totalSteps - 1}
+            {connectionStatus === 'success' ? 'Start Listening' : 'Finish Setup'}
+          {:else}
+            Next
+          {/if}
+          <ArrowRight class="w-4 h-4" />
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
-  .onboarding-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(20px);
+  .section-tab {
     display: flex;
     align-items: center;
-    justify-content: center;
-    animation: fade-in 0.4s ease;
-    transition: opacity 0.4s ease, transform 0.4s ease;
-  }
-
-  .onboarding-overlay.closing {
-    opacity: 0;
-    transform: scale(1.02);
-    pointer-events: none;
-  }
-
-  @keyframes fade-in {
-    from { opacity: 0; transform: scale(0.98); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-  .onboarding-container {
-    position: relative;
-    width: 100%;
-    max-width: 520px;
-    padding: 48px 40px 36px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  .skip-btn {
-    position: absolute;
-    top: 0;
-    right: 0;
-    color: #6a6a6a;
-    font-size: 13px;
-    font-weight: 500;
+    gap: 6px;
     padding: 8px 16px;
-    border-radius: 20px;
+    border-radius: 50px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b3b3b3;
+    background: transparent;
     transition: color 0.2s, background 0.2s;
   }
-
-  .skip-btn:hover {
+  .section-tab:hover {
     color: #fff;
     background: rgba(255, 255, 255, 0.07);
   }
-
-  .step-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    animation: step-in 0.3s ease;
+  .section-tab-active {
+    color: #000;
+    background: #fff;
   }
-
-  @keyframes step-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
+  .section-tab-active:hover {
+    color: #000;
+    background: #e0e0e0;
   }
-
-  .step-icon {
-    margin-bottom: 28px;
-  }
-
-  .icon-circle {
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
+  .method-tab {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  }
-
-  .icon-green {
-    background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
-  }
-
-  .icon-orange {
-    background: linear-gradient(135deg, #ff6b35 0%, #ffa42b 100%);
-  }
-
-  .icon-blue {
-    background: linear-gradient(135deg, #1e90ff 0%, #63b3ed 100%);
-  }
-
-  .icon-purple {
-    background: linear-gradient(135deg, #4520a0 0%, #7b5fc7 100%);
-  }
-
-  .step-text {
-    margin-bottom: 24px;
-  }
-
-  .step-subtitle {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #1db954;
-    margin-bottom: 8px;
-  }
-
-  .step-title {
-    font-size: 32px;
-    font-weight: 900;
-    color: #fff;
-    line-height: 1.1;
-    margin-bottom: 12px;
-  }
-
-  .step-description {
-    font-size: 15px;
-    color: #b3b3b3;
-    line-height: 1.5;
-    max-width: 400px;
-  }
-
-  .features-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    width: 100%;
-    max-width: 320px;
-    margin-bottom: 8px;
-  }
-
-  .feature-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
-    color: #e0e0e0;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
+    color: #6a6a6a;
+    transition: color 0.2s, background 0.2s;
   }
-
-  .step-controls {
+  .method-tab:hover {
+    color: #b3b3b3;
+  }
+  .method-tab-active {
+    background: #282828;
+    color: #fff;
+  }
+  .step-num {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 24px;
-    margin-top: 32px;
-    width: 100%;
-  }
-
-  .step-dots {
-    display: flex;
-    gap: 8px;
-  }
-
-  .dot {
-    width: 8px;
-    height: 8px;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: #3e3e3e;
-    transition: background 0.2s, transform 0.2s;
-  }
-
-  .dot:hover {
-    background: #6a6a6a;
-  }
-
-  .dot-active {
-    background: #fff;
-    transform: scale(1.2);
-  }
-
-  .dot-done {
-    background: #1db954;
-  }
-
-  .next-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 32px;
-    background: #fff;
-    color: #000;
+    background: #282828;
+    color: #fff;
+    font-size: 12px;
     font-weight: 700;
-    font-size: 15px;
-    border-radius: 50px;
-    transition: transform 0.15s, background 0.15s;
-  }
-
-  .next-btn:hover {
-    transform: scale(1.04);
-    background: #e0e0e0;
+    flex-shrink: 0;
   }
 </style>

@@ -1928,9 +1928,9 @@ dependencies = [
 
 [[package]]
 name = "image"
-version = "0.25.9"
+version = "0.25.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6506c6c10786659413faa717ceebcb8f70731c0a60cbae39795fdf114519c1a"
+checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
 dependencies = [
  "bytemuck",
  "byteorder-lite",
@@ -2307,9 +2307,9 @@ dependencies = [
 
 [[package]]
 name = "moxcms"
-version = "0.7.11"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac9557c559cd6fc9867e122e20d2cbefc9ca29d80d027a8e39310920ed2f0a97"
+checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",
@@ -2588,9 +2588,9 @@ dependencies = [
 
 [[package]]
 name = "openssl"
-version = "0.10.75"
+version = "0.10.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08838db121398ad17ab8531ce9de97b244589089e290a384c900cb9ff7434328"
+checksum = "951c002c75e16ea2c65b8c7e4d3d51d5530d8dfa7d060b4776828c88cfb18ecf"
 dependencies = [
  "bitflags 2.11.0",
  "cfg-if",
@@ -2620,9 +2620,9 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.111"
+version = "0.9.112"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82cab2d520aa75e3c58898289429321eb788c3106963d0dc886ec7a5f4adc321"
+checksum = "57d55af3b3e226502be1526dfdba67ab0e9c96fc293004e79576b2b9edb0dbdb"
 dependencies = [
  "cc",
  "libc",
@@ -3127,12 +3127,9 @@ dependencies = [
 
 [[package]]
 name = "pxfm"
-version = "0.1.27"
+version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7186d3822593aa4393561d186d1393b3923e9d6163d3fbfd6e825e3e6cf3e6a8"
-dependencies = [
- "num-traits",
-]
+checksum = "b5a041e753da8b807c9255f28de81879c78c876392ff2469cde94799b2896b9d"
 
 [[package]]
 name = "quick-xml"
@@ -3640,9 +3637,9 @@ dependencies = [
 
 [[package]]
 name = "schannel"
-version = "0.1.28"
+version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891d81b926048e76efe18581bf793546b4c0eaf8448d72be8de2bbee5fd166e1"
+checksum = "91c1b7e4904c873ef0710c1f407dde2e6287de2bebc1bbbf7d430bb7cbffd939"
 dependencies = [
  "windows-sys 0.61.2",
 ]
@@ -4070,7 +4067,7 @@ dependencies = [
 
 [[package]]
 name = "spotycloud"
-version = "0.3.1"
+version = "0.3.4"
 dependencies = [
  "discord-rich-presence",
  "futures-util",
@@ -4758,9 +4755,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa5fdc3bce6191a1dbc8c02d5c8bffcf557bafa17c124c5264a458f1b0613fa"
+checksum = "3e61e67053d25a4e82c844e8424039d9745781b3fc4f32b8d55ed50f5f667ef3"
 dependencies = [
  "tinyvec_macros",
 ]
@@ -5053,9 +5050,9 @@ checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "uds_windows"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b70b87d15e91f553711b40df3048faf27a7a04e01e0ddc0cf9309f0af7c2ca"
+checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",

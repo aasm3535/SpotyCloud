@@ -45,7 +45,12 @@ async function ensureDir(): Promise<string> {
  */
 export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
   if (cache.has(key)) {
-    return cache.get(key) as T;
+    const cached = cache.get(key);
+    // Don't return cached null when caller provides a real default
+    // (initStorage pre-loads keys with null defaults for migration)
+    if (cached !== null || defaultValue === null) {
+      return cached as T;
+    }
   }
 
   try {

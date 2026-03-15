@@ -51,7 +51,7 @@
   });
 
   $effect(() => {
-    if (storageReady && !auth.isAuthenticated && $page.url.pathname !== '/settings') {
+    if (storageReady && onboarding.done && !auth.isAuthenticated && $page.url.pathname !== '/settings') {
       goto('/settings');
     }
   });
@@ -83,7 +83,11 @@
             <div class="main-gradient" style={gradientStyle}></div>
           {/if}
           <div class="p-6 relative z-[1]">
-            {@render children()}
+            {#if !onboarding.done}
+              <Onboarding />
+            {:else}
+              {@render children()}
+            {/if}
           </div>
         </main>
       </div>
@@ -93,9 +97,6 @@
   <PlayerBar />
 </div>
 
-{#if !onboarding.done}
-  <Onboarding />
-{/if}
 
 <style>
   .main-gradient {
