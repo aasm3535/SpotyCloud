@@ -2,21 +2,21 @@
  * Persistent file-based storage using Tauri FS.
  * Data is saved to Documents/SpotyCloud/data/ so it survives app updates.
  * Falls back to localStorage during SSR or if Tauri is unavailable.
+ *
+ * All Tauri imports are dynamic to avoid SSR crashes.
  */
-
-import {
-  readTextFile,
-  writeTextFile,
-  mkdir,
-  exists,
-} from '@tauri-apps/plugin-fs';
-import { documentDir, join } from '@tauri-apps/api/path';
 
 let basePath: string | null = null;
 let initPromise: Promise<void> | null = null;
 
 // Cache for loaded data (avoids repeated file reads)
 const cache = new Map<string, unknown>();
+
+async function getTauriFs() {
+  const fs = await import('@tauri-apps/plugin-fs');
+  const path = await import('@tauri-apps/api/path');
+  return { ...fs, ...path };
+}
 
 async function ensureDir(): Promise<string> {
   if (basePath) return basePath;
@@ -26,6 +26,7 @@ async function ensureDir(): Promise<string> {
   }
 
   initPromise = (async () => {
+    const { documentDir, join, exists, mkdir } = await getTauriFs();
     const docDir = await documentDir();
     basePath = await join(docDir, 'SpotyCloud', 'data');
     const dirExists = await exists(basePath);
@@ -40,15 +41,15 @@ async function ensureDir(): Promise<string> {
 
 /**
  * Load data from persistent storage.
- * First checks in-memory cache, then file, then localStorage (migration), then returns defaultValue.
+ * Checks: cache → file → localStorage (migration) → defaultValue.
  */
 export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
-  // Check cache first
   if (cache.has(key)) {
     return cache.get(key) as T;
   }
 
   try {
+    const { join, exists, readTextFile } = await getTauriFs();
     const dir = await ensureDir();
     const filePath = await join(dir, `${key}.json`);
     const fileExists = await exists(filePath);
@@ -65,9 +66,7 @@ export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
       const localData = localStorage.getItem(key);
       if (localData) {
         const parsed = JSON.parse(localData) as T;
-        // Save to file for future use
         await saveData(key, parsed);
-        // Remove from localStorage after successful migration
         localStorage.removeItem(key);
         return parsed;
       }
@@ -75,7 +74,6 @@ export async function loadData<T>(key: string, defaultValue: T): Promise<T> {
   } catch (e) {
     console.warn(`[Storage] Failed to load "${key}":`, e);
 
-    // Final fallback: try localStorage
     if (typeof localStorage !== 'undefined') {
       try {
         const localData = localStorage.getItem(key);
@@ -95,12 +93,12 @@ export async function saveData<T>(key: string, data: T): Promise<void> {
   cache.set(key, data);
 
   try {
+    const { join, writeTextFile } = await getTauriFs();
     const dir = await ensureDir();
     const filePath = await join(dir, `${key}.json`);
     await writeTextFile(filePath, JSON.stringify(data));
   } catch (e) {
     console.warn(`[Storage] Failed to save "${key}":`, e);
-    // Fallback: try localStorage
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(key, JSON.stringify(data));
@@ -111,7 +109,6 @@ export async function saveData<T>(key: string, data: T): Promise<void> {
 
 /**
  * Synchronous load from cache or localStorage (for initial state before async init).
- * Use loadData() for the authoritative async version.
  */
 export function loadDataSync<T>(key: string, defaultValue: T): T {
   if (cache.has(key)) {
@@ -134,7 +131,6 @@ export function loadDataSync<T>(key: string, defaultValue: T): T {
 
 /**
  * Initialize storage: migrate all known keys from localStorage to file storage.
- * Call this once on app startup.
  */
 export async function initStorage(): Promise<void> {
   const keysToMigrate = [
@@ -151,7 +147,6 @@ export async function initStorage(): Promise<void> {
 
   for (const key of keysToMigrate) {
     try {
-      // This will auto-migrate from localStorage to file if needed
       await loadData(key, null);
     } catch (e) {
       console.warn(`[Storage] Migration failed for "${key}":`, e);
