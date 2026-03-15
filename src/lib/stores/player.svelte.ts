@@ -259,6 +259,10 @@ export function getPlayer() {
 }
 
 export function play(track: SCTrack, trackList?: SCTrack[]) {
+  // Playing something manually stops wave mode
+  waveMode = false;
+  isWaveTrack = false;
+
   if (trackList) {
     queue = trackList;
     queueIndex = trackList.indexOf(track);
@@ -267,7 +271,6 @@ export function play(track: SCTrack, trackList?: SCTrack[]) {
       queueIndex = 0;
     }
   } else {
-    // Add to queue if not already there
     const idx = queue.findIndex(t => t.id === track.id);
     if (idx !== -1) {
       queueIndex = idx;
