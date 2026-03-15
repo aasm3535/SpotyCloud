@@ -87,6 +87,12 @@ bun run tauri build    # production build
 - "Listen on SoundCloud" button linking to the track
 - Small icon indicating playback through SpotyCloud
 
+### Auto-Update
+- Checks for updates on launch and every 30 minutes
+- In-app download with progress bar
+- One-click install and restart
+- Signed updates via GitHub Releases
+
 ### Interface
 - Custom title bar with window controls
 - Resizable sidebar with drag handle
@@ -118,7 +124,7 @@ bun run tauri build    # production build
 
 SpotyCloud connects to the SoundCloud public API using a `client_id` extracted from the SoundCloud web app. No account login or OAuth is required. The app provides a guided setup process — either through a console script or manual extraction from browser network requests.
 
-All user data (liked tracks, playlists, equalizer settings, preferences) is stored locally in the browser's localStorage within the Tauri webview. Downloaded tracks are saved to the user's Documents directory under `SpotyCloud/downloads`.
+All user data (liked tracks, playlists, equalizer settings, preferences) is stored as JSON files in `Documents/SpotyCloud/data/`. This ensures your data persists across app updates. Downloaded tracks are saved to `Documents/SpotyCloud/downloads/`.
 
 ---
 

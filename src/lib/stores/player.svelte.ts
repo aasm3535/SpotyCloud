@@ -7,6 +7,7 @@ import Hls from 'hls.js';
 import { connectAudio } from './equalizer.svelte';
 import { getRelatedTracks } from '$lib/api/soundcloud';
 import { getLikedTracks } from './liked.svelte';
+import { loadDataSync, saveData } from '$lib/utils/storage';
 
 // Read local file and create blob URL for playback
 async function getLocalFileUrl(filePath: string): Promise<string> {
@@ -85,13 +86,13 @@ const WAVE_MAX_FETCH_ATTEMPTS = 3;            // Max retries with different seed
 
 function loadDisliked(): Set<number> {
   try {
-    const s = localStorage.getItem('wave_disliked');
-    return s ? new Set(JSON.parse(s)) : new Set();
+    const arr = loadDataSync<number[]>('wave_disliked', []);
+    return new Set(arr);
   } catch { return new Set(); }
 }
 
 function saveDisliked() {
-  localStorage.setItem('wave_disliked', JSON.stringify([...waveDisliked]));
+  saveData('wave_disliked', [...waveDisliked]);
 }
 
 function resetWaveSession() {

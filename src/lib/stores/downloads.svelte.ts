@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { SCTrack } from '$lib/api/types';
+import { loadDataSync, saveData } from '$lib/utils/storage';
 
 export type DownloadStatus = 'idle' | 'downloading' | 'completed' | 'error';
 
@@ -128,19 +129,16 @@ export async function checkTrackExists(track: SCTrack): Promise<boolean> {
   }
 }
 
-// Load offline tracks from localStorage on init
+// Load offline tracks from persistent storage
 function loadOfflineTracks() {
-  if (typeof localStorage === 'undefined') return;
-  
   try {
-    const saved = localStorage.getItem('spotycloud_offline_tracks');
+    const saved = loadDataSync<{ trackIds: number[]; filePaths: Record<string, string> } | null>('spotycloud_offline_tracks', null);
     if (saved) {
-      const data = JSON.parse(saved);
-      if (data.trackIds) {
-        data.trackIds.forEach((id: number) => offlineTrackIds.add(id));
+      if (saved.trackIds) {
+        saved.trackIds.forEach((id: number) => offlineTrackIds.add(id));
       }
-      if (data.filePaths) {
-        Object.entries(data.filePaths).forEach(([id, path]) => {
+      if (saved.filePaths) {
+        Object.entries(saved.filePaths).forEach(([id, path]) => {
           trackFilePaths[Number(id)] = path as string;
         });
       }
@@ -150,19 +148,12 @@ function loadOfflineTracks() {
   }
 }
 
-// Save offline tracks to localStorage
+// Save offline tracks to persistent storage
 function saveOfflineTracks() {
-  if (typeof localStorage === 'undefined') return;
-  
-  try {
-    const data = {
-      trackIds: Array.from(offlineTrackIds),
-      filePaths: trackFilePaths
-    };
-    localStorage.setItem('spotycloud_offline_tracks', JSON.stringify(data));
-  } catch (e) {
-    console.error('Failed to save offline tracks:', e);
-  }
+  saveData('spotycloud_offline_tracks', {
+    trackIds: Array.from(offlineTrackIds),
+    filePaths: trackFilePaths,
+  });
 }
 
 // Initialize on module load

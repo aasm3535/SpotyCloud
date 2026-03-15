@@ -1,4 +1,5 @@
 import type { SCTrack } from '$lib/api/types';
+import { loadDataSync, loadData, saveData } from '$lib/utils/storage';
 
 export interface Playlist {
   id: string;
@@ -9,22 +10,15 @@ export interface Playlist {
 
 const STORAGE_KEY = 'spotycloud_playlists';
 
-function loadPlaylists(): Playlist[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+let playlists = $state<Playlist[]>(loadDataSync(STORAGE_KEY, []));
+
+export async function initPlaylists() {
+  playlists = await loadData<Playlist[]>(STORAGE_KEY, []);
 }
 
-function savePlaylists(list: Playlist[]) {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch {}
+function save() {
+  saveData(STORAGE_KEY, playlists);
 }
-
-let playlists = $state<Playlist[]>(loadPlaylists());
 
 export function getPlaylists() {
   return {
@@ -42,18 +36,18 @@ export function createPlaylist(name?: string): Playlist {
     createdAt: Date.now(),
   };
   playlists = [pl, ...playlists];
-  savePlaylists(playlists);
+  save();
   return pl;
 }
 
 export function deletePlaylist(id: string) {
   playlists = playlists.filter(p => p.id !== id);
-  savePlaylists(playlists);
+  save();
 }
 
 export function renamePlaylist(id: string, name: string) {
   playlists = playlists.map(p => p.id === id ? { ...p, name } : p);
-  savePlaylists(playlists);
+  save();
 }
 
 export function addTrackToPlaylist(playlistId: string, track: SCTrack) {
@@ -62,7 +56,7 @@ export function addTrackToPlaylist(playlistId: string, track: SCTrack) {
     if (p.tracks.some(t => t.id === track.id)) return p;
     return { ...p, tracks: [...p.tracks, track] };
   });
-  savePlaylists(playlists);
+  save();
 }
 
 export function removeTrackFromPlaylist(playlistId: string, trackId: number) {
@@ -70,7 +64,7 @@ export function removeTrackFromPlaylist(playlistId: string, trackId: number) {
     if (p.id !== playlistId) return p;
     return { ...p, tracks: p.tracks.filter(t => t.id !== trackId) };
   });
-  savePlaylists(playlists);
+  save();
 }
 
 export function getPlaylistById(id: string): Playlist | undefined {

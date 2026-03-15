@@ -14,6 +14,11 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
+  import { initStorage } from '$lib/utils/storage';
+  import { initLiked } from '$lib/stores/liked.svelte';
+  import { initPlaylists } from '$lib/stores/playlists.svelte';
+  import { initSettings } from '$lib/stores/settings.svelte';
+  import { initAuthStorage } from '$lib/api/auth';
 
   interface Props {
     children: Snippet;
@@ -24,7 +29,16 @@
   const headerColor = getHeaderColor();
   const onboarding = getOnboarding();
 
-  onMount(() => {
+  onMount(async () => {
+    // Initialize persistent file storage (migrates localStorage data)
+    await initStorage();
+    await Promise.all([
+      initLiked(),
+      initPlaylists(),
+      initSettings(),
+      initAuthStorage(),
+    ]);
+
     invoke('show_window');
   });
 

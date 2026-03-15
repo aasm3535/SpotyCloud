@@ -1,24 +1,21 @@
+import { loadDataSync, loadData, saveData } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'spotycloud_onboarding_done';
 
-let onboardingDone = $state(false);
+let onboardingDone = $state(loadDataSync(STORAGE_KEY, false));
 
-export function initOnboarding() {
-  if (typeof localStorage === 'undefined') return;
-  onboardingDone = localStorage.getItem(STORAGE_KEY) === 'true';
+export async function initOnboarding() {
+  onboardingDone = await loadData<boolean>(STORAGE_KEY, false);
 }
 
 export function completeOnboarding() {
   onboardingDone = true;
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, 'true');
-  }
+  saveData(STORAGE_KEY, true);
 }
 
 export function resetOnboarding() {
   onboardingDone = false;
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem(STORAGE_KEY);
-  }
+  saveData(STORAGE_KEY, false);
 }
 
 export function getOnboarding() {

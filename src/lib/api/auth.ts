@@ -1,14 +1,23 @@
+import { loadDataSync, loadData, saveData } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'spotycloud_client_id';
 
+let cachedId: string | null = loadDataSync<string | null>(STORAGE_KEY, null);
+
+export async function initAuthStorage() {
+  cachedId = await loadData<string | null>(STORAGE_KEY, null);
+}
+
 export function getClientId(): string | null {
-  if (typeof localStorage === 'undefined') return null;
-  return localStorage.getItem(STORAGE_KEY);
+  return cachedId;
 }
 
 export function setClientId(clientId: string): void {
-  localStorage.setItem(STORAGE_KEY, clientId);
+  cachedId = clientId;
+  saveData(STORAGE_KEY, clientId);
 }
 
 export function clearClientId(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  cachedId = null;
+  saveData(STORAGE_KEY, null);
 }

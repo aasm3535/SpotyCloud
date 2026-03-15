@@ -1,42 +1,30 @@
 import type { SCTrack } from '$lib/api/types';
+import { loadDataSync, loadData, saveData } from '$lib/utils/storage';
 
-const STORAGE_KEY = 'liked_tracks';
-const TRACKS_STORAGE_KEY = 'liked_tracks_data';
+const IDS_KEY = 'liked_tracks';
+const DATA_KEY = 'liked_tracks_data';
 
-function loadLikedIds(): number[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+let likedTrackIds = $state<number[]>(loadDataSync(IDS_KEY, []));
+let likedTrackData: Map<number, SCTrack> = new Map();
+
+// Load track data from sync cache
+const cachedData = loadDataSync<SCTrack[]>(DATA_KEY, []);
+if (cachedData.length > 0) {
+  likedTrackData = new Map(cachedData.map(t => [t.id, t]));
 }
 
-function loadLikedTrackData(): Map<number, SCTrack> {
-  if (typeof window === 'undefined') return new Map();
-  try {
-    const stored = localStorage.getItem(TRACKS_STORAGE_KEY);
-    if (!stored) return new Map();
-    const arr: SCTrack[] = JSON.parse(stored);
-    return new Map(arr.map(t => [t.id, t]));
-  } catch {
-    return new Map();
-  }
+// Async init: load from file storage (migrates localStorage automatically)
+export async function initLiked() {
+  const ids = await loadData<number[]>(IDS_KEY, []);
+  const data = await loadData<SCTrack[]>(DATA_KEY, []);
+  likedTrackIds = ids;
+  likedTrackData = new Map(data.map(t => [t.id, t]));
 }
 
-function saveLikedIds(ids: number[]) {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ids)); } catch {}
+function saveAll() {
+  saveData(IDS_KEY, likedTrackIds);
+  saveData(DATA_KEY, [...likedTrackData.values()]);
 }
-
-function saveLikedTrackData(data: Map<number, SCTrack>) {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify([...data.values()])); } catch {}
-}
-
-let likedTrackIds = $state<number[]>(loadLikedIds());
-let likedTrackData: Map<number, SCTrack> = loadLikedTrackData();
 
 export function getLikedTracks() {
   return {
@@ -59,14 +47,12 @@ export function toggleLike(track: SCTrack): boolean {
   if (index > -1) {
     likedTrackIds = likedTrackIds.filter(id => id !== track.id);
     likedTrackData.delete(track.id);
-    saveLikedIds(likedTrackIds);
-    saveLikedTrackData(likedTrackData);
+    saveAll();
     return false;
   } else {
     likedTrackIds = [...likedTrackIds, track.id];
     likedTrackData.set(track.id, track);
-    saveLikedIds(likedTrackIds);
-    saveLikedTrackData(likedTrackData);
+    saveAll();
     return true;
   }
 }
@@ -75,14 +61,12 @@ export function likeTrack(track: SCTrack) {
   if (!isLiked(track.id)) {
     likedTrackIds = [...likedTrackIds, track.id];
     likedTrackData.set(track.id, track);
-    saveLikedIds(likedTrackIds);
-    saveLikedTrackData(likedTrackData);
+    saveAll();
   }
 }
 
 export function unlikeTrack(trackId: number) {
   likedTrackIds = likedTrackIds.filter(id => id !== trackId);
   likedTrackData.delete(trackId);
-  saveLikedIds(likedTrackIds);
-  saveLikedTrackData(likedTrackData);
+  saveAll();
 }

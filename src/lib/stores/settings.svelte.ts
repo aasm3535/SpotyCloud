@@ -1,22 +1,22 @@
+import { loadDataSync, loadData, saveData } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'app_settings';
 
 interface AppSettings {
   alwaysCollapsedSidebar: boolean;
 }
 
-function load(): AppSettings {
-  if (typeof window === 'undefined') return { alwaysCollapsedSidebar: false };
-  try {
-    const s = localStorage.getItem(STORAGE_KEY);
-    return s ? JSON.parse(s) : { alwaysCollapsedSidebar: false };
-  } catch { return { alwaysCollapsedSidebar: false }; }
+const defaults: AppSettings = { alwaysCollapsedSidebar: false };
+
+let settings = $state<AppSettings>(loadDataSync(STORAGE_KEY, defaults));
+
+export async function initSettings() {
+  settings = await loadData<AppSettings>(STORAGE_KEY, defaults);
 }
 
-function save(settings: AppSettings) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+function save() {
+  saveData(STORAGE_KEY, settings);
 }
-
-let settings = $state<AppSettings>(load());
 
 export function getSettings() {
   return {
@@ -26,5 +26,5 @@ export function getSettings() {
 
 export function setAlwaysCollapsedSidebar(value: boolean) {
   settings.alwaysCollapsedSidebar = value;
-  save(settings);
+  save();
 }

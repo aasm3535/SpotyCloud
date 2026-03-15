@@ -5,8 +5,15 @@
   import { getEqualizer, setBandGain, applyPreset, toggleEq, type PresetName } from '$lib/stores/equalizer.svelte';
   import { getSettings, setAlwaysCollapsedSidebar } from '$lib/stores/settings.svelte';
   import { Check, Copy, AlertCircle, Music, ExternalLink, Terminal, MousePointer, Info, Link, RotateCcw, AudioLines, PanelLeftClose } from 'lucide-svelte';
+  import { getVersion } from '@tauri-apps/api/app';
+  import { onMount } from 'svelte';
 
   const auth = getAuth();
+  let appVersion = $state('...');
+
+  onMount(async () => {
+    try { appVersion = await getVersion(); } catch { appVersion = '0.2.0'; }
+  });
   const eq = getEqualizer();
   const appSettings = getSettings();
   let activeSection = $state<'connection' | 'howto' | 'equalizer' | 'about'>('connection');
@@ -414,7 +421,7 @@ fetch(location.href).then(r=>r.text()).then(function(h){
           </div>
           <div>
             <p class="text-white font-bold text-lg">SpotyCloud</p>
-            <p class="text-[#b3b3b3] text-sm">Version 0.1.0</p>
+            <p class="text-[#b3b3b3] text-sm">Version {appVersion}</p>
           </div>
         </div>
         <p class="text-sm text-[#b3b3b3] leading-relaxed">

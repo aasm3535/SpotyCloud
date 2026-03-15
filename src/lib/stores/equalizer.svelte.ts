@@ -1,4 +1,5 @@
 // 10-band equalizer using Web Audio API
+import { loadDataSync, saveData } from '$lib/utils/storage';
 
 const BANDS = [
   { freq: 60, label: '60' },
@@ -57,22 +58,21 @@ let enabled = $state(true);
 
 function loadSaved() {
   try {
-    const saved = localStorage.getItem('eq_state');
+    const saved = loadDataSync<{ gains: number[]; preset: PresetName; enabled: boolean } | null>('eq_state', null);
     if (saved) {
-      const data = JSON.parse(saved);
-      if (data.gains?.length === 10) gains = data.gains;
-      if (data.preset) activePreset = data.preset;
-      if (typeof data.enabled === 'boolean') enabled = data.enabled;
+      if (saved.gains?.length === 10) gains = saved.gains;
+      if (saved.preset) activePreset = saved.preset;
+      if (typeof saved.enabled === 'boolean') enabled = saved.enabled;
     }
   } catch {}
 }
 
 function save() {
-  localStorage.setItem('eq_state', JSON.stringify({
+  saveData('eq_state', {
     gains: [...gains],
     preset: activePreset,
     enabled,
-  }));
+  });
 }
 
 function initContext() {
