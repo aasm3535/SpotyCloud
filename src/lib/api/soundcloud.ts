@@ -1,4 +1,5 @@
 import type { SCTrack, SCSearchResult, SCTranscoding } from './types';
+import { fetch } from '@tauri-apps/plugin-http';
 
 const API_BASE = 'https://api-v2.soundcloud.com';
 
@@ -30,12 +31,31 @@ async function apiFetch<T>(endpoint: string, params: Record<string, string> = {}
   return res.json();
 }
 
-export async function testConnection(): Promise<boolean> {
+export async function testConnection(): Promise<{ success: boolean; error?: string }> {
   try {
-    await apiFetch<SCSearchResult<SCTrack>>('/search/tracks', { q: 'test', limit: '1' });
-    return true;
-  } catch {
-    return false;
+    if (!clientId) return { success: false, error: 'Client ID not set' };
+    
+    const url = new URL(`${API_BASE}/search/tracks`);
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('q', 'test');
+    url.searchParams.set('limit', '1');
+    
+    console.log('Testing connection with URL:', url.toString().replace(clientId, '***'));
+    
+    const res = await fetch(url.toString());
+    
+    console.log('Response status:', res.status);
+    
+    if (res.ok) {
+      return { success: true };
+    } else {
+      const text = await res.text();
+      console.error('Error response:', text);
+      return { success: false, error: `HTTP ${res.status}: ${text.slice(0, 200)}` };
+    }
+  } catch (e) {
+    console.error('Connection error:', e);
+    return { success: false, error: e instanceof Error ? e.message : 'Network error' };
   }
 }
 
@@ -52,24 +72,56 @@ export async function getTrack(trackId: number): Promise<SCTrack> {
 }
 
 export async function getStreamUrl(track: SCTrack): Promise<string> {
-  // Find best transcoding — prefer HLS + AAC (opus as fallback)
   const transcodings = track.media?.transcodings ?? [];
+  
+  console.log('Available transcodings:', transcodings.map(t => ({ protocol: t.format.protocol, mime: t.format.mime_type })));
 
+  // Prefer progressive (direct file) over HLS for better CORS compatibility
   const preferred = transcodings.find(
-    (t: SCTranscoding) => t.format.protocol === 'hls' && t.format.mime_type.includes('mpeg')
+    (t: SCTranscoding) => t.format.protocol === 'progressive' && t.format.mime_type.includes('mpeg')
+  ) ?? transcodings.find(
+    (t: SCTranscoding) => t.format.protocol === 'progressive'
   ) ?? transcodings.find(
     (t: SCTranscoding) => t.format.protocol === 'hls'
   ) ?? transcodings[0];
 
   if (!preferred) throw new Error('No stream available for this track');
 
+  console.log('Selected transcoding:', preferred.format.protocol, preferred.format.mime_type);
+
   // Resolve the transcoding URL to get the actual stream URL
   const url = new URL(preferred.url);
   url.searchParams.set('client_id', clientId!);
+  console.log('Fetching stream from:', url.toString().replace(clientId!, '***'));
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error('Failed to get stream URL');
   const data: { url: string } = await res.json();
+  console.log('Got stream URL:', data.url.substring(0, 80) + '...');
   return data.url;
+}
+
+export async function getRelatedTracks(trackId: number, limit = 10): Promise<SCTrack[]> {
+  const result = await apiFetch<SCSearchResult<SCTrack>>(`/tracks/${trackId}/related`, {
+    limit: String(limit),
+  });
+  return result.collection;
+}
+
+export async function getUserTracks(userId: number, limit = 10): Promise<SCTrack[]> {
+  const result = await apiFetch<SCSearchResult<SCTrack>>(`/users/${userId}/tracks`, {
+    limit: String(limit),
+  });
+  return result.collection;
+}
+
+export async function getTrendingTracks(genre?: string, limit = 20): Promise<SCTrack[]> {
+  const params: Record<string, string> = {
+    limit: String(limit),
+    kind: 'trending',
+  };
+  if (genre) params.genre = `soundcloud:genres:${genre}`;
+  const result = await apiFetch<SCSearchResult<SCTrack>>('/search/tracks', params);
+  return result.collection;
 }
 
 export async function fetchNextPage<T>(nextHref: string): Promise<SCSearchResult<T>> {

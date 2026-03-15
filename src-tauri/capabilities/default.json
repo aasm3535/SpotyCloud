@@ -5,6 +5,26 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-focus",
+    "opener:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api-v2.soundcloud.com/*" },
+        { "url": "https://*.sndcdn.com/*" },
+        { "url": "https://cf-hls-media.sndcdn.com/*" },
+        { "url": "https://cf-hls-opus-media.sndcdn.com/*" },
+        { "url": "https://cf-media.sndcdn.com/*" }
+      ]
+    },
+    "fs:allow-document-read-recursive",
+    "fs:allow-document-write-recursive",
+    "fs:allow-document-meta-recursive"
   ]
 }

@@ -13,11 +13,13 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 export function getSearch() {
   return {
     get query() { return query; },
+    set query(value: string) { query = value; },
     get results() { return results; },
     get isLoading() { return isLoading; },
     get error() { return error; },
     get hasMore() { return nextHref !== null; },
     get totalResults() { return totalResults; },
+    submit: () => performSearch(query),
   };
 }
 

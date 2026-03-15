@@ -13,15 +13,15 @@ export function initAuth() {
   }
 }
 
-export async function login(clientId: string): Promise<boolean> {
+export async function login(clientId: string): Promise<{ success: boolean; error?: string }> {
   setApiClientId(clientId);
-  const ok = await testConnection();
-  if (ok) {
+  const result = await testConnection();
+  if (result.success) {
     setClientId(clientId);
     storedClientId = clientId;
     isAuthenticated = true;
   }
-  return ok;
+  return result;
 }
 
 export function logout() {

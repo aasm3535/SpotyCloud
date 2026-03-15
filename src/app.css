@@ -1,34 +1,126 @@
 @import "tailwindcss";
 
+/* SpotifyMix Font Family */
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Extrabold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SpotifyMix';
+  src: url('/fonts/SpotifyMix-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
-  --color-bg-primary: #0a0a0a;
-  --color-bg-secondary: #141414;
-  --color-bg-tertiary: #1a1a1a;
-  --color-bg-hover: #252525;
-  --color-bg-active: #2a2a2a;
-  --color-text-primary: #e4e4e4;
-  --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
-  --color-accent: #ff5500;
-  --color-accent-hover: #ff6a1a;
+  --color-spotify-black: #000000;
+  --color-spotify-dark: #121212;
+  --color-spotify-dark-elevated: #1e1e1e;
+  --color-spotify-dark-highlight: #2a2a2a;
+  --color-spotify-gray: #b3b3b3;
+  --color-spotify-light: #ffffff;
+  --color-spotify-green: #1db954;
+  --color-spotify-green-hover: #1ed760;
+  --color-spotify-border: #282828;
+  --color-spotify-card: #181818;
+  --color-spotify-card-hover: #282828;
+
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #121212;
+  --color-bg-tertiary: #1e1e1e;
+  --color-bg-hover: #2a2a2a;
+  --color-bg-active: #282828;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #b3b3b3;
+  --color-text-muted: #6a6a6a;
+  --color-accent: #1db954;
+  --color-accent-hover: #1ed760;
   --color-border: #282828;
 }
 
 html, body {
-  @apply bg-bg-primary text-text-primary m-0 p-0 h-full overflow-hidden select-none;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  @apply bg-bg-primary text-text-primary m-0 p-0 h-full overflow-hidden;
+  font-family: 'SpotifyMix', 'Circular Std', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: normal;
 }
 
+/* Prevent horizontal scrollbar globally */
+html, body, #app {
+  overflow-x: hidden;
+}
+
+/* Spotify-like scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 0;
+  background: transparent;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.gradient-mask {
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+.hover-scale {
+  transition: transform 0.2s ease;
+}
+.hover-scale:hover {
+  transform: scale(1.04);
+}
+
+/* Smooth transitions for interactive elements */
+button, a {
+  transition: color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
 }

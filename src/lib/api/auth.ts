@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'symptom_client_id';
+const STORAGE_KEY = 'spotycloud_client_id';
 
 export function getClientId(): string | null {
   if (typeof localStorage === 'undefined') return null;
