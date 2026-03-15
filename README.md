@@ -140,20 +140,22 @@ src-tauri/              # Tauri / Rust backend
 
 ## CI / CD
 
-Releases are built automatically via GitHub Actions on every version tag (`v*`). The workflow compiles native installers for:
+Releases are fully automated. Every push to `master` triggers a build if the version in `package.json` has changed. The workflow:
 
-- Windows x64 (`.msi`, `.exe`)
-- macOS ARM64 / Apple Silicon (`.dmg`)
-- macOS x64 / Intel (`.dmg`)
+1. Reads the version from `package.json`
+2. Checks if a release for that version already exists
+3. If not, builds native installers for all platforms and publishes a release
 
-To create a release:
+To ship a new version, bump the version in `package.json` and push:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+# in package.json: "version": "0.2.0"
+git add package.json
+git commit -m "bump version to 0.2.0"
+git push
 ```
 
-A draft release with all platform binaries will appear on the [Releases](https://github.com/aasm3535/SpotyCloud/releases) page.
+Installers for Windows (`.msi`, `.exe`) and macOS (`.dmg` for both Apple Silicon and Intel) will appear on the [Releases](https://github.com/aasm3535/SpotyCloud/releases) page automatically.
 
 ---
 
