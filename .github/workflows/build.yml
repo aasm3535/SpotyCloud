@@ -99,3 +99,79 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: --target ${{ matrix.target }}
+
+  # Merge updater JSON files from all platforms
+  merge-updater:
+    needs: [version, build]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        run: |
+          gh release download ${{ needs.version.outputs.tag }} --repo ${{ github.repository }} --dir ./release-assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge updater JSON files
+        run: |
+          # Find all latest.json files
+          json_files=$(find ./release-assets -name "latest.json" -o -name "*.json" | grep -E "(latest|updater)" || true)
+          
+          if [ -z "$json_files" ]; then
+            echo "No updater JSON files found, creating from scratch..."
+            
+            # Get version
+            VERSION="${{ needs.version.outputs.version }}"
+            
+            # Create base structure
+            cat > latest.json << EOF
+          {
+            "version": "v$VERSION",
+            "notes": "SpotyCloud $VERSION",
+            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "platforms": {}
+          }
+          EOF
+          else
+            # Merge all found JSON files
+            echo "Found JSON files: $json_files"
+            
+            # Use jq to merge if available, otherwise use node
+            if command -v jq &> /dev/null; then
+              echo "Using jq to merge..."
+              # Start with empty platforms
+              merged='{"platforms": {}}'
+              
+              for file in $json_files; do
+                if [ -f "$file" ]; then
+                  echo "Processing: $file"
+                  # Extract platforms and merge
+                  platforms=$(jq -c '.platforms // {}' "$file" 2>/dev/null || echo '{}')
+                  merged=$(echo "$merged" | jq --argjson p "$platforms" '.platforms += $p')
+                fi
+              done
+              
+              # Add version info
+              VERSION="${{ needs.version.outputs.version }}"
+              merged=$(echo "$merged" | jq --arg v "$VERSION" --arg date "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '
+                .version = "v" + $v |
+                .notes = "SpotyCloud " + $v |
+                .pub_date = $date
+              ')
+              
+              echo "$merged" > latest.json
+            else
+              echo "jq not found, using fallback..."
+              # Fallback: just use the first file and update version
+              cp "$json_files" latest.json
+            fi
+          fi
+          
+          echo "Final latest.json:"
+          cat latest.json
+
+      - name: Upload merged updater JSON
+        run: |
+          gh release upload ${{ needs.version.outputs.tag }} latest.json --repo ${{ github.repository }} --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
