@@ -37,7 +37,7 @@ jobs:
 
   build:
     needs: version
-    if: needs.version.outputs.should_release == 'true'
+    # Always build on push, create release only if tag doesn't exist
     strategy:
       fail-fast: false
       matrix:
@@ -80,6 +80,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
+          # Only create release if tag doesn't exist
           tagName: ${{ needs.version.outputs.tag }}
           releaseName: 'SpotyCloud ${{ needs.version.outputs.tag }}'
           releaseBody: |
@@ -103,7 +104,6 @@ jobs:
   # Merge updater JSON files from all platforms
   merge-updater:
     needs: [version, build]
-    if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Download release assets
