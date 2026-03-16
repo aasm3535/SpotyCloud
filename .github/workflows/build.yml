@@ -39,25 +39,41 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Check if tag already exists
+        id: check_tag
+        shell: bash
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Rust
+        if: steps.check_tag.outputs.exists == 'false'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Rust cache
+        if: steps.check_tag.outputs.exists == 'false'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
       - name: Install Bun
+        if: steps.check_tag.outputs.exists == 'false'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install frontend dependencies
+        if: steps.check_tag.outputs.exists == 'false'
         run: bun install
 
       - name: Build Tauri app
+        if: steps.check_tag.outputs.exists == 'false'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,30 +110,102 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Create latest.json
+      - name: Install GitHub CLI
+        run: |
+          type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Wait for release assets
         shell: bash
         run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
           TAG="${{ steps.get_version.outputs.tag }}"
+          echo "Waiting for release $TAG to be available..."
+          for i in {1..30}; do
+            if gh release view "$TAG" --repo ${{ github.repository }} >/dev/null 2>&1; then
+              echo "Release found!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 10
+          done
+
+      - name: Download signatures from release
+        shell: bash
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          VERSION="${{ steps.get_version.outputs.version }}"
+          
+          # Create temp directory for downloads
+          mkdir -p /tmp/signatures
+          
+          # Download all .sig files
+          gh release download "$TAG" --repo ${{ github.repository }} --pattern "*.sig" --dir /tmp/signatures || true
+          
+          echo "Downloaded signature files:"
+          ls -la /tmp/signatures/
+
+      - name: Create latest.json with signatures
+        shell: bash
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          VERSION="${{ steps.get_version.outputs.version }}"
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REPO="${{ github.repository }}"
+          
+          # Read signatures from files
+          WINDOWS_SIG=""
+          MACOS_ARM_SIG=""
+          MACOS_INTEL_SIG=""
+          
+          # Windows signature (from .exe.sig or .msi.sig)
+          if [ -f "/tmp/signatures/spotycloud_${VERSION}_x64-setup.exe.sig" ]; then
+            WINDOWS_SIG=$(cat "/tmp/signatures/spotycloud_${VERSION}_x64-setup.exe.sig" | tr -d '\n')
+            echo "Found Windows .exe signature"
+          elif [ -f "/tmp/signatures/spotycloud_${VERSION}_x64_en-US.msi.sig" ]; then
+            WINDOWS_SIG=$(cat "/tmp/signatures/spotycloud_${VERSION}_x64_en-US.msi.sig" | tr -d '\n')
+            echo "Found Windows .msi signature"
+          fi
+          
+          # macOS ARM signature (from .app.tar.gz.sig)
+          if [ -f "/tmp/signatures/spotycloud_aarch64.app.tar.gz.sig" ]; then
+            MACOS_ARM_SIG=$(cat "/tmp/signatures/spotycloud_aarch64.app.tar.gz.sig" | tr -d '\n')
+            echo "Found macOS ARM signature"
+          fi
+          
+          # macOS Intel signature (from .app.tar.gz.sig)
+          if [ -f "/tmp/signatures/spotycloud_x64.app.tar.gz.sig" ]; then
+            MACOS_INTEL_SIG=$(cat "/tmp/signatures/spotycloud_x64.app.tar.gz.sig" | tr -d '\n')
+            echo "Found macOS Intel signature"
+          fi
+          
+          # Windows URL - use .exe as primary
+          WINDOWS_URL="https://github.com/${REPO}/releases/download/${TAG}/spotycloud_${VERSION}_x64-setup.exe"
+          
+          # macOS URLs - use .app.tar.gz (required for Tauri updater)
+          MACOS_ARM_URL="https://github.com/${REPO}/releases/download/${TAG}/spotycloud_aarch64.app.tar.gz"
+          MACOS_INTEL_URL="https://github.com/${REPO}/releases/download/${TAG}/spotycloud_x64.app.tar.gz"
           
           cat > latest.json << EOF
           {
-            "version": "$TAG",
-            "notes": "SpotyCloud $VERSION",
-            "pub_date": "$DATE",
+            "version": "${TAG}",
+            "notes": "SpotyCloud ${VERSION}",
+            "pub_date": "${DATE}",
             "platforms": {
               "windows-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/spotycloud_${VERSION}_x64-setup.exe"
+                "signature": "${WINDOWS_SIG}",
+                "url": "${WINDOWS_URL}"
               },
               "darwin-aarch64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/spotycloud_${VERSION}_aarch64.dmg"
+                "signature": "${MACOS_ARM_SIG}",
+                "url": "${MACOS_ARM_URL}"
               },
               "darwin-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/spotycloud_${VERSION}_x64.dmg"
+                "signature": "${MACOS_INTEL_SIG}",
+                "url": "${MACOS_INTEL_URL}"
               }
             }
           }
