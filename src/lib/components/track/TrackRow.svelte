@@ -104,10 +104,10 @@
     }
   }
 
-  function handleLike(e: MouseEvent) {
+  async function handleLike(e: MouseEvent) {
     e.stopPropagation();
     const wasLiked = liked;
-    toggleLike(track);
+    await toggleLike(track);
     if (!wasLiked && likeBtnRef) {
       likeAnimating = true;
       spawnParticles(likeBtnRef);

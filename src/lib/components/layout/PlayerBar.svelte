@@ -33,8 +33,8 @@
     return `${minutes}m`;
   }
 
-  function handleLike() {
-    if (player.currentTrack) toggleLike(player.currentTrack);
+  async function handleLike() {
+    if (player.currentTrack) await toggleLike(player.currentTrack);
   }
 
   let seekBarRef = $state<HTMLDivElement | null>(null);

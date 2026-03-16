@@ -96,7 +96,7 @@
       .filter((t): t is NonNullable<typeof t> => t !== null);
 
     if (importMode === 'liked') {
-      likeTracksBatch(tracks);
+      await likeTracksBatch(tracks);
     } else {
       const pl = createPlaylist('Spotify Import');
       addTracksToPlaylistBatch(pl.id, tracks);

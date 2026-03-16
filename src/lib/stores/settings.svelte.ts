@@ -55,12 +55,12 @@ export async function initSettings() {
   playerState = { ...playerDefaults, ...savedPlayer };
 }
 
-function save() {
-  saveData(STORAGE_KEY, settings);
+async function save() {
+  await saveData(STORAGE_KEY, settings);
 }
 
-function savePlayerState() {
-  saveData(PLAYER_STATE_KEY, playerState);
+async function savePlayerState() {
+  await saveData(PLAYER_STATE_KEY, playerState);
 }
 
 export function getSettings() {
@@ -78,76 +78,76 @@ export function getSettings() {
   };
 }
 
-export function setDisableCardHover(value: boolean) {
+export async function setDisableCardHover(value: boolean) {
   settings.disableCardHover = value;
-  save();
+  await save();
 }
 
 export function getSavedPlayerState(): SavedPlayerState {
   return { ...playerState };
 }
 
-export function savePlayerVolume(v: number) {
+export async function savePlayerVolume(v: number) {
   playerState.volume = v;
-  savePlayerState();
+  await savePlayerState();
 }
 
-export function savePlayerShuffle(v: boolean) {
+export async function savePlayerShuffle(v: boolean) {
   playerState.isShuffle = v;
-  savePlayerState();
+  await savePlayerState();
 }
 
-export function savePlayerRepeat(v: 'none' | 'all' | 'one') {
+export async function savePlayerRepeat(v: 'none' | 'all' | 'one') {
   playerState.repeatMode = v;
-  savePlayerState();
+  await savePlayerState();
 }
 
-export function savePlayerLastTrack(trackId: number | null) {
+export async function savePlayerLastTrack(trackId: number | null) {
   playerState.lastTrackId = trackId;
-  savePlayerState();
+  await savePlayerState();
 }
 
-export function setAlwaysCollapsedSidebar(value: boolean) {
+export async function setAlwaysCollapsedSidebar(value: boolean) {
   settings.alwaysCollapsedSidebar = value;
-  save();
+  await save();
 }
 
-export function setDiscordRpcEnabled(value: boolean) {
+export async function setDiscordRpcEnabled(value: boolean) {
   settings.discordRpcEnabled = value;
-  save();
+  await save();
 }
 
-export function setDiscordShowListenButton(value: boolean) {
+export async function setDiscordShowListenButton(value: boolean) {
   settings.discordShowListenButton = value;
-  save();
+  await save();
 }
 
-export function setCloseToTray(value: boolean) {
+export async function setCloseToTray(value: boolean) {
   settings.closeToTray = value;
-  save();
+  await save();
 }
 
-export function setWaveTheme(value: string) {
+export async function setWaveTheme(value: string) {
   settings.waveTheme = value;
-  save();
+  await save();
 }
 
-export function setReactiveWave(value: boolean) {
+export async function setReactiveWave(value: boolean) {
   settings.reactiveWave = value;
-  save();
+  await save();
 }
 
-export function setLyricsGlow(value: boolean) {
+export async function setLyricsGlow(value: boolean) {
   settings.lyricsGlow = value;
-  save();
+  await save();
 }
 
-export function setLyricsFontSize(value: number) {
+export async function setLyricsFontSize(value: number) {
   settings.lyricsFontSize = value;
-  save();
+  await save();
 }
 
-export function setLyricsTextAlign(value: 'center' | 'left') {
+export async function setLyricsTextAlign(value: 'center' | 'left') {
   settings.lyricsTextAlign = value;
-  save();
+  await save();
 }

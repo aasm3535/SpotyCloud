@@ -131,14 +131,14 @@
     window.location.reload();
   }
 
-  function handleToggleLike() {
+  async function handleToggleLike() {
     // Toggle like for all selected tracks
     const trackIds = selection.selectedTrackIds;
     if (trackIds.length > 0) {
       // For multi-select, we need to get the actual tracks
       // For now, just toggle the clicked track if single selection
       if (selectedTrack) {
-        toggleLike(selectedTrack);
+        await toggleLike(selectedTrack);
       }
     }
     visible = false;

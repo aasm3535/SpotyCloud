@@ -44,13 +44,14 @@ async function getLocalFileUrl(filePath: string): Promise<string> {
   }
 }
 
-function updateDiscordRpc(track: SCTrack) {
-  // Lazy import to avoid circular dependency
-  const settingsModule = import.meta.glob('../stores/settings.svelte.ts', { eager: true }) as Record<string, any>;
-  const settingsExports = Object.values(settingsModule)[0];
-  const appSettings = settingsExports?.getSettings?.();
+async function updateDiscordRpc(track: SCTrack) {
+  // Dynamic import to avoid circular dependency
+  const { getSettings } = await import('./settings.svelte');
+  const settings = getSettings();
+  const isEnabled = settings.discordRpcEnabled ?? true;
+  const showListenButton = settings.discordShowListenButton ?? true;
 
-  if (appSettings && !appSettings.discordRpcEnabled) {
+  if (!isEnabled) {
     clearDiscordRpc();
     return;
   }
@@ -59,7 +60,7 @@ function updateDiscordRpc(track: SCTrack) {
     ? track.artwork_url.replace('-large', '-t500x500')
     : null;
   const durationSecs = track.duration ? Math.round(track.duration / 1000) : null;
-  const trackUrl = (appSettings?.discordShowListenButton !== false) ? (track.permalink_url || null) : null;
+  const trackUrl = showListenButton ? (track.permalink_url || null) : null;
   invoke('discord_rpc_update', {
     title: track.title,
     artist: `by ${track.user.username}`,
@@ -427,9 +428,9 @@ async function loadAndPlay(track: SCTrack) {
   error = null;
   currentTrack = track;
   lastSavedTrackId = track.id;
-  savePlayerLastTrack(track.id);
+  await savePlayerLastTrack(track.id);
   updateMediaSession();
-  updateDiscordRpc(track);
+  await updateDiscordRpc(track);
 
   // Track history for wave mode diversity
   if (waveMode) {
@@ -794,10 +795,10 @@ export function seek(time: number) {
   currentTime = time;
 }
 
-export function setVolume(v: number) {
+export async function setVolume(v: number) {
   volume = Math.max(0, Math.min(1, v));
   if (audio) audio.volume = volume;
-  savePlayerVolume(volume);
+  await savePlayerVolume(volume);
 }
 
 export function addToQueue(track: SCTrack) {
@@ -817,9 +818,9 @@ export function clearQueue() {
   queueIndex = -1;
 }
 
-export function toggleShuffle() {
+export async function toggleShuffle() {
   isShuffle = !isShuffle;
-  savePlayerShuffle(isShuffle);
+  await savePlayerShuffle(isShuffle);
 }
 
 export function startWave(seedTracks: SCTrack[]) {
@@ -846,9 +847,9 @@ export function waveDislike(trackId: number) {
   next();
 }
 
-export function cycleRepeat() {
+export async function cycleRepeat() {
   if (repeatMode === 'none') repeatMode = 'all';
   else if (repeatMode === 'all') repeatMode = 'one';
   else repeatMode = 'none';
-  savePlayerRepeat(repeatMode);
+  await savePlayerRepeat(repeatMode);
 }

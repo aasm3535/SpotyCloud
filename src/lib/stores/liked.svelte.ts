@@ -21,13 +21,13 @@ export async function initLiked() {
   likedTrackData = new Map(data.map(t => [t.id, t]));
 }
 
-function saveAll() {
+async function saveAll() {
   // Filter out local tracks (negative IDs) - they have Object URLs that expire after session
   const persistentIds = likedTrackIds.filter(id => id > 0);
   const persistentData = [...likedTrackData.values()].filter(t => t.id > 0);
   
-  saveData(IDS_KEY, persistentIds);
-  saveData(DATA_KEY, persistentData);
+  await saveData(IDS_KEY, persistentIds);
+  await saveData(DATA_KEY, persistentData);
 }
 
 export function getLikedTracks() {
@@ -46,37 +46,37 @@ export function isLiked(trackId: number): boolean {
   return likedTrackIds.includes(trackId);
 }
 
-export function toggleLike(track: SCTrack): boolean {
+export async function toggleLike(track: SCTrack): Promise<boolean> {
   const index = likedTrackIds.indexOf(track.id);
   if (index > -1) {
     likedTrackIds = likedTrackIds.filter(id => id !== track.id);
     likedTrackData.delete(track.id);
-    saveAll();
+    await saveAll();
     return false;
   } else {
     likedTrackIds = [...likedTrackIds, track.id];
     likedTrackData.set(track.id, track);
-    saveAll();
+    await saveAll();
     return true;
   }
 }
 
-export function likeTrack(track: SCTrack) {
+export async function likeTrack(track: SCTrack) {
   if (!isLiked(track.id)) {
     likedTrackIds = [...likedTrackIds, track.id];
     likedTrackData.set(track.id, track);
-    saveAll();
+    await saveAll();
   }
 }
 
-export function unlikeTrack(trackId: number) {
+export async function unlikeTrack(trackId: number) {
   likedTrackIds = likedTrackIds.filter(id => id !== trackId);
   likedTrackData.delete(trackId);
-  saveAll();
+  await saveAll();
 }
 
 /** Add multiple tracks at once, saving only once at the end */
-export function likeTracksBatch(tracks: SCTrack[]) {
+export async function likeTracksBatch(tracks: SCTrack[]) {
   const existingIds = new Set(likedTrackIds);
   const newIds: number[] = [];
   for (const track of tracks) {
@@ -88,6 +88,6 @@ export function likeTracksBatch(tracks: SCTrack[]) {
   }
   if (newIds.length > 0) {
     likedTrackIds = [...likedTrackIds, ...newIds];
-    saveAll();
+    await saveAll();
   }
 }

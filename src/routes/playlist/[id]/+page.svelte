@@ -188,10 +188,10 @@
     clearSelection();
   }
 
-  function likeSelected() {
+  async function likeSelected() {
     if (!playlist || selectedIds.size === 0) return;
     const tracks = playlist.tracks.filter(t => selectedIds.has(t.id));
-    likeTracksBatch(tracks);
+    await likeTracksBatch(tracks);
     clearSelection();
   }
 
