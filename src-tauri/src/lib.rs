@@ -4,6 +4,7 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     Manager,
+    Emitter,
 };
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use std::sync::Mutex;
@@ -256,6 +257,112 @@ fn discord_rpc_clear(state: tauri::State<'_, DiscordRpcState>) -> Result<(), Str
     Ok(())
 }
 
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HotkeyConfig {
+    pub action: String,
+    pub key: String,
+    pub modifiers: Option<Vec<String>>,
+    pub combo: Option<String>,
+}
+
+#[tauri::command]
+async fn register_global_shortcut(
+    app: tauri::AppHandle,
+    config: HotkeyConfig,
+) -> Result<(), String> {
+    let shortcut_manager = app.global_shortcut();
+    
+    // Build shortcut string
+    let mut shortcut_str = String::new();
+    
+    if let Some(ref modifiers) = config.modifiers {
+        for modifier in modifiers {
+            shortcut_str.push_str(&format!("{}+", modifier.to_lowercase()));
+        }
+    }
+    
+    if let Some(ref combo) = config.combo {
+        shortcut_str.push_str(&format!("{}+{}", config.key.to_uppercase(), combo.to_uppercase()));
+    } else {
+        shortcut_str.push_str(&config.key.to_uppercase());
+    }
+    
+    println!("[register_global_shortcut] Registering: {}", shortcut_str);
+    
+    // Try to register the shortcut
+    match shortcut_manager.register(&shortcut_str) {
+        Ok(_) => {
+            println!("[register_global_shortcut] Successfully registered: {}", shortcut_str);
+            Ok(())
+        }
+        Err(e) => {
+            let err_msg = format!("Failed to register shortcut '{}': {:?}", shortcut_str, e);
+            println!("[register_global_shortcut] {}", err_msg);
+            Err(err_msg)
+        }
+    }
+}
+
+#[tauri::command]
+async fn unregister_global_shortcut(
+    app: tauri::AppHandle,
+    config: HotkeyConfig,
+) -> Result<(), String> {
+    let shortcut_manager = app.global_shortcut();
+    
+    // Build shortcut string
+    let mut shortcut_str = String::new();
+    
+    if let Some(ref modifiers) = config.modifiers {
+        for modifier in modifiers {
+            shortcut_str.push_str(&format!("{}+", modifier.to_lowercase()));
+        }
+    }
+    
+    if let Some(ref combo) = config.combo {
+        shortcut_str.push_str(&format!("{}+{}", config.key.to_uppercase(), combo.to_uppercase()));
+    } else {
+        shortcut_str.push_str(&config.key.to_uppercase());
+    }
+    
+    println!("[unregister_global_shortcut] Unregistering: {}", shortcut_str);
+    
+    match shortcut_manager.unregister(&shortcut_str) {
+        Ok(_) => {
+            println!("[unregister_global_shortcut] Successfully unregistered: {}", shortcut_str);
+            Ok(())
+        }
+        Err(e) => {
+            let err_msg = format!("Failed to unregister shortcut '{}': {:?}", shortcut_str, e);
+            println!("[unregister_global_shortcut] {}", err_msg);
+            Err(err_msg)
+        }
+    }
+}
+
+#[tauri::command]
+async fn unregister_all_shortcuts(app: tauri::AppHandle) -> Result<(), String> {
+    let shortcut_manager = app.global_shortcut();
+    
+    println!("[unregister_all_shortcuts] Unregistering all shortcuts");
+    
+    match shortcut_manager.unregister_all() {
+        Ok(_) => {
+            println!("[unregister_all_shortcuts] Successfully unregistered all shortcuts");
+            Ok(())
+        }
+        Err(e) => {
+            let err_msg = format!("Failed to unregister all shortcuts: {:?}", e);
+            println!("[unregister_all_shortcuts] {}", err_msg);
+            Err(err_msg)
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -264,6 +371,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             greet, 
             show_window, 
@@ -274,12 +382,30 @@ pub fn run() {
             get_downloads_dir,
             list_downloaded_tracks,
             delete_downloaded_track,
-            track_exists_locally
+            track_exists_locally,
+            register_global_shortcut,
+            unregister_global_shortcut,
+            unregister_all_shortcuts
         ])
         .setup(|app| {
             // Auto-updater
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+
+            // Global shortcuts event handler
+            app.handle().plugin(
+                tauri_plugin_global_shortcut::Builder::new()
+                    .with_handler(|app, shortcut, event| {
+                        if event.state() == ShortcutState::Pressed {
+                            let shortcut_str = shortcut.to_string();
+                            println!("[GlobalShortcut] Pressed: {}", shortcut_str);
+                            
+                            // Emit event to frontend
+                            let _ = app.emit("global-shortcut", shortcut_str);
+                        }
+                    })
+                    .build(),
+            )?;
 
             let show = MenuItem::with_id(app, "show", "Show SpotyCloud", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

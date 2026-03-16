@@ -44,5 +44,22 @@
         "https://github.com/aasm3535/SpotyCloud/releases/latest/download/latest.json"
       ]
     }
-  }
+  },
+  "capabilities": [
+    {
+      "identifier": "default",
+      "description": "Default capabilities for the app",
+      "windows": ["main"],
+      "permissions": [
+        "core:default",
+        "fs:default",
+        "http:default",
+        "global-shortcut:default",
+        "global-shortcut:allow-is-registered",
+        "global-shortcut:allow-register",
+        "global-shortcut:allow-unregister",
+        "global-shortcut:allow-unregister-all"
+      ]
+    }
+  ]
 }

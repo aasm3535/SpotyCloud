@@ -801,6 +801,17 @@ export async function setVolume(v: number) {
   await savePlayerVolume(volume);
 }
 
+let savedVolume = $state(volume);
+
+export async function toggleMute() {
+  if (volume > 0) {
+    savedVolume = volume;
+    await setVolume(0);
+  } else {
+    await setVolume(savedVolume || 0.7);
+  }
+}
+
 export function addToQueue(track: SCTrack) {
   queue = [...queue, track];
 }

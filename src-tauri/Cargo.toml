@@ -31,4 +31,5 @@ tokio = { version = "1", features = ["fs", "io-util"] }
 futures-util = "0.3"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-global-shortcut = "2"
 

@@ -18,8 +18,10 @@
   import { initStorage } from '$lib/utils/storage';
   import { initLiked } from '$lib/stores/liked.svelte';
   import { initPlaylists } from '$lib/stores/playlists.svelte';
-  import { initSettings } from '$lib/stores/settings.svelte';
-  import { initAuthStorage } from '$lib/api/auth';
+import { initSettings, getSettings } from '$lib/stores/settings.svelte';
+import { initAuthStorage } from '$lib/api/auth';
+import { registerAllShortcuts } from '$lib/api/hotkeys';
+import { initGlobalShortcutListener } from '$lib/utils/globalShortcuts';
 
   interface Props {
     children: Snippet;
@@ -45,6 +47,22 @@
     initAuth();
     initOnboarding();
     initUsername();
+
+    // 3. Register global hotkeys from settings
+    const settings = getSettings();
+    try {
+      await registerAllShortcuts(settings.hotkeys);
+      console.log('[Hotkeys] Global shortcuts registered successfully');
+    } catch (error) {
+      console.error('[Hotkeys] Failed to register shortcuts:', error);
+    }
+    
+    // 4. Initialize global shortcut listener
+    try {
+      await initGlobalShortcutListener();
+    } catch (error) {
+      console.error('[Hotkeys] Failed to initialize listener:', error);
+    }
 
     storageReady = true;
 

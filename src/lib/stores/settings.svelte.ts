@@ -3,6 +3,15 @@ import { loadDataSync, loadData, saveData } from '$lib/utils/storage';
 const STORAGE_KEY = 'app_settings';
 const PLAYER_STATE_KEY = 'player_state';
 
+export type HotkeyAction = 'playPause' | 'nextTrack' | 'prevTrack' | 'volumeUp' | 'volumeDown' | 'mute';
+
+export interface HotkeyBinding {
+  action: HotkeyAction;
+  key: string; // e.g., "M", "Z", "V"
+  modifiers?: string[]; // e.g., ["Ctrl"], ["Alt"]
+  combo?: string; // For two-key combos like "Z+V"
+}
+
 interface AppSettings {
   alwaysCollapsedSidebar: boolean;
   closeToTray: boolean;
@@ -14,6 +23,7 @@ interface AppSettings {
   lyricsGlow: boolean;
   lyricsFontSize: number;
   lyricsTextAlign: 'center' | 'left';
+  hotkeys: Record<HotkeyAction, HotkeyBinding>;
 }
 
 export interface SavedPlayerState {
@@ -34,6 +44,14 @@ const defaults: AppSettings = {
   lyricsGlow: true,
   lyricsFontSize: 28,
   lyricsTextAlign: 'center',
+  hotkeys: {
+    playPause: { action: 'playPause', key: 'M' },
+    nextTrack: { action: 'nextTrack', key: 'Z' },
+    prevTrack: { action: 'prevTrack', key: 'X' },
+    volumeUp: { action: 'volumeUp', key: 'ArrowUp', modifiers: ['Ctrl'] },
+    volumeDown: { action: 'volumeDown', key: 'ArrowDown', modifiers: ['Ctrl'] },
+    mute: { action: 'mute', key: 'M', modifiers: ['Shift'] },
+  },
 };
 
 const playerDefaults: SavedPlayerState = {
@@ -75,6 +93,7 @@ export function getSettings() {
     get lyricsGlow() { return settings.lyricsGlow; },
     get lyricsFontSize() { return settings.lyricsFontSize; },
     get lyricsTextAlign() { return settings.lyricsTextAlign; },
+    get hotkeys() { return settings.hotkeys; },
   };
 }
 
@@ -150,4 +169,56 @@ export async function setLyricsFontSize(value: number) {
 export async function setLyricsTextAlign(value: 'center' | 'left') {
   settings.lyricsTextAlign = value;
   await save();
+}
+
+export async function setHotkey(action: HotkeyAction, binding: HotkeyBinding) {
+  settings.hotkeys[action] = binding;
+  await save();
+}
+
+export async function resetHotkeys() {
+  settings.hotkeys = { ...defaults.hotkeys };
+  await save();
+}
+
+export function formatHotkey(binding: HotkeyBinding): string {
+  const parts: string[] = [];
+  
+  if (binding.modifiers) {
+    parts.push(...binding.modifiers);
+  }
+  
+  if (binding.combo) {
+    parts.push(`${binding.key}+${binding.combo}`);
+  } else {
+    parts.push(binding.key);
+  }
+  
+  return parts.join('+');
+}
+
+// System shortcuts that should be avoided
+const SYSTEM_SHORTCUTS = [
+  'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+Z', 'Ctrl+Y', 'Ctrl+A', 'Ctrl+S',
+  'Ctrl+P', 'Ctrl+F', 'Ctrl+H', 'Ctrl+N', 'Ctrl+O', 'Ctrl+W', 'Ctrl+Q',
+  'Alt+F4', 'Alt+Tab', 'Ctrl+Alt+Delete', 'Win+L', 'Win+D', 'Win+E',
+  'F1', 'F5', 'F11', 'F12', 'Ctrl+Shift+Esc', 'Ctrl+Alt+Tab',
+];
+
+export function checkHotkeyConflict(binding: HotkeyBinding): string | null {
+  const formatted = formatHotkey(binding);
+  
+  // Check system shortcuts
+  if (SYSTEM_SHORTCUTS.includes(formatted)) {
+    return `Конфликт с системным сочетанием: ${formatted}`;
+  }
+  
+  // Check conflicts with other hotkeys
+  for (const [action, existingBinding] of Object.entries(settings.hotkeys)) {
+    if (formatHotkey(existingBinding) === formatted) {
+      return `Конфликт с действием: ${action}`;
+    }
+  }
+  
+  return null;
 }
