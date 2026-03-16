@@ -10,50 +10,33 @@ permissions:
   contents: write
 
 jobs:
-  version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      tag: ${{ steps.get_version.outputs.tag }}
-      should_release: ${{ steps.check_tag.outputs.should_release }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version from package.json
-        id: get_version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Check if tag already exists
-        id: check_tag
-        run: |
-          if git ls-remote --tags origin | grep -q "refs/tags/v$(node -p "require('./package.json').version")$"; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          fi
-
   build:
-    needs: version
-    # Always build on push, create release only if tag doesn't exist
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
+            args: ""
           - platform: macos-latest
             target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
           - platform: macos-latest
             target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
 
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -80,98 +63,67 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
-          # Only create release if tag doesn't exist
-          tagName: ${{ needs.version.outputs.tag }}
-          releaseName: 'SpotyCloud ${{ needs.version.outputs.tag }}'
+          tagName: ${{ steps.get_version.outputs.tag }}
+          releaseName: 'SpotyCloud ${{ steps.get_version.outputs.tag }}'
           releaseBody: |
-            **SpotyCloud ${{ needs.version.outputs.version }}**
+            **SpotyCloud ${{ steps.get_version.outputs.version }}**
 
-            Download the installer for your platform below.
+            Download for your platform:
 
-            | Platform | File |
-            |----------|------|
-            | Windows | `.msi` or `.exe` |
-            | macOS (Apple Silicon) | `.dmg` |
-            | macOS (Intel) | `.dmg` |
-
-            ---
-            _This release includes auto-update support. Existing users will be notified automatically._
+            **Windows:** .msi or .exe installer  
+            **macOS (Apple Silicon):** .dmg  
+            **macOS (Intel):** .dmg
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
-          args: --target ${{ matrix.target }}
+          includeUpdaterJson: false
+          args: ${{ matrix.args }}
 
-  # Merge updater JSON files from all platforms
-  merge-updater:
-    needs: [version, build]
+  # Generate proper latest.json after all builds complete
+  create-updater:
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download release assets
+      - name: Get version
+        id: get_version
         run: |
-          gh release download ${{ needs.version.outputs.tag }} --repo ${{ github.repository }} --dir ./release-assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Merge updater JSON files
+      - name: Create latest.json
         run: |
-          # Find all latest.json files
-          json_files=$(find ./release-assets -name "latest.json" -o -name "*.json" | grep -E "(latest|updater)" || true)
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="${{ steps.get_version.outputs.tag }}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           
-          if [ -z "$json_files" ]; then
-            echo "No updater JSON files found, creating from scratch..."
-            
-            # Get version
-            VERSION="${{ needs.version.outputs.version }}"
-            
-            # Create base structure
-            cat > latest.json << EOF
+          cat > latest.json << EOF
           {
-            "version": "v$VERSION",
+            "version": "$TAG",
             "notes": "SpotyCloud $VERSION",
-            "pub_date": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "platforms": {}
+            "pub_date": "$DATE",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/spotycloud_${VERSION}_x64-setup.exe"
+              },
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/spotycloud_${VERSION}_aarch64.dmg"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${{ github.repository }}/releases/download/$TAG/spotycloud_${VERSION}_x64.dmg"
+              }
+            }
           }
           EOF
-          else
-            # Merge all found JSON files
-            echo "Found JSON files: $json_files"
-            
-            # Use jq to merge if available, otherwise use node
-            if command -v jq &> /dev/null; then
-              echo "Using jq to merge..."
-              # Start with empty platforms
-              merged='{"platforms": {}}'
-              
-              for file in $json_files; do
-                if [ -f "$file" ]; then
-                  echo "Processing: $file"
-                  # Extract platforms and merge
-                  platforms=$(jq -c '.platforms // {}' "$file" 2>/dev/null || echo '{}')
-                  merged=$(echo "$merged" | jq --argjson p "$platforms" '.platforms += $p')
-                fi
-              done
-              
-              # Add version info
-              VERSION="${{ needs.version.outputs.version }}"
-              merged=$(echo "$merged" | jq --arg v "$VERSION" --arg date "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '
-                .version = "v" + $v |
-                .notes = "SpotyCloud " + $v |
-                .pub_date = $date
-              ')
-              
-              echo "$merged" > latest.json
-            else
-              echo "jq not found, using fallback..."
-              # Fallback: just use the first file and update version
-              cp "$json_files" latest.json
-            fi
-          fi
           
-          echo "Final latest.json:"
+          echo "Created latest.json:"
           cat latest.json
 
-      - name: Upload merged updater JSON
-        run: |
-          gh release upload ${{ needs.version.outputs.tag }} latest.json --repo ${{ github.repository }} --clobber
+      - name: Upload latest.json to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          gh release upload "$TAG" latest.json --repo ${{ github.repository }} --clobber
