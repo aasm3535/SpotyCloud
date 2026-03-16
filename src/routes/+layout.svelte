@@ -3,6 +3,7 @@
   import TitleBar from '$lib/components/layout/TitleBar.svelte';
   import Sidebar from '$lib/components/layout/Sidebar.svelte';
   import PlayerBar from '$lib/components/layout/PlayerBar.svelte';
+  import ContextMenu from '$lib/components/layout/ContextMenu.svelte';
   import { initAuth, getAuth } from '$lib/stores/auth.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -97,6 +98,7 @@
   <PlayerBar />
 </div>
 
+<ContextMenu />
 
 <style>
   .main-gradient {

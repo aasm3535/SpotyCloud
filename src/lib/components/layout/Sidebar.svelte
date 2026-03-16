@@ -289,10 +289,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 9999px;
+    border-radius: 50%;
     color: #b3b3b3;
     flex-shrink: 0;
     transition: transform 0.25s cubic-bezier(.4,0,.2,1), color 0.15s, background-color 0.15s;
+    padding: 0;
+    line-height: 1;
+  }
+  .create-btn :global(svg) {
+    display: block;
+    margin: auto;
   }
   .create-btn:hover {
     color: #fff;
@@ -430,8 +436,10 @@
     cursor: pointer;
     min-height: 56px;
   }
-  .lib-item:hover { background: rgba(255,255,255,.07); }
-  .lib-item.active { background: rgba(255,255,255,.1); }
+  .lib-item:hover .item-art,
+  .lib-item.active .item-art {
+    box-shadow: 0 0 0 4px rgba(255,255,255,0.1);
+  }
   .lib-item.collapsed {
     justify-content: center;
     position: relative;
@@ -447,6 +455,7 @@
     justify-content: center;
     flex-shrink: 0;
     overflow: hidden;
+    transition: box-shadow 0.15s ease;
   }
   .item-art.gradient {
     background: linear-gradient(135deg, #450af5, #c4efd9);

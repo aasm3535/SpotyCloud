@@ -1,16 +1,23 @@
 <script lang="ts">
   import TrackRow from '$lib/components/track/TrackRow.svelte';
   import { getLikedTracks } from '$lib/stores/liked.svelte';
-  import { play } from '$lib/stores/player.svelte';
-  import { downloadTrack, isTrackDownloaded, deleteDownloadedTrack } from '$lib/stores/downloads.svelte';
-  import { Play, Heart, Clock3, Search, Download, ListFilter, Check, Loader2, Trash2 } from 'lucide-svelte';
+  import { play, getPlayer, togglePlay } from '$lib/stores/player.svelte';
+  import { downloadTrack, isTrackDownloaded, deleteDownloadedTrack, offlineTrackIds } from '$lib/stores/downloads.svelte';
+  import { Play, Pause, Heart, Clock3, Search, Download, ListFilter, Check, Loader2, Trash2, Upload } from 'lucide-svelte';
   import { formatDuration } from '$lib/utils/format';
+  import type { SCTrack } from '$lib/api/types';
+  import { likeTrack } from '$lib/stores/liked.svelte';
   import { setHeaderColor } from '$lib/stores/headerColor.svelte';
   import { getUsername } from '$lib/stores/username.svelte';
   import { onDestroy } from 'svelte';
 
   const liked = getLikedTracks();
+  const player = getPlayer();
   const user = getUsername();
+
+  const isPlayingFromLiked = $derived(
+    player.isPlaying && liked.tracks.some(t => t.id === player.currentTrack?.id)
+  );
 
   // Set purple gradient for liked songs page
   $effect(() => {
@@ -39,21 +46,40 @@
     }
   }
 
+  function playShuffled() {
+    if (filteredTracks.length > 0) {
+      const shuffled = [...filteredTracks].sort(() => Math.random() - 0.5);
+      play(shuffled[0], shuffled);
+    }
+  }
+
   // Download all tracks
   let isDownloadingAll = $state(false);
   let downloadProgress = $state({ current: 0, total: 0 });
   let isHoveringDownloadBtn = $state(false);
 
-  // Check download status of all tracks
-  const downloadedCount = $derived(
-    liked.tracks.filter(t => isTrackDownloaded(t.id)).length
-  );
-  const allTracksDownloaded = $derived(
-    liked.tracks.length > 0 && downloadedCount === liked.tracks.length
-  );
-  const someTracksDownloaded = $derived(
-    downloadedCount > 0 && downloadedCount < liked.tracks.length
-  );
+  // Check download status of all tracks - reactive
+  let downloadedCount = $state(0);
+  let allTracksDownloaded = $state(false);
+  let someTracksDownloaded = $state(false);
+  
+  function updateDownloadStatus() {
+    downloadedCount = liked.tracks.filter(t => isTrackDownloaded(t.id)).length;
+    allTracksDownloaded = liked.tracks.length > 0 && downloadedCount === liked.tracks.length;
+    someTracksDownloaded = downloadedCount > 0 && downloadedCount < liked.tracks.length;
+  }
+  
+  $effect(() => {
+    // Track dependency on offlineTrackIds to trigger reactivity
+    const ids = [...offlineTrackIds];
+    updateDownloadStatus();
+  });
+  
+  // Update on mount and when tracks change
+  $effect(() => {
+    liked.tracks.length;
+    updateDownloadStatus();
+  });
 
   async function downloadAll() {
     if (isDownloadingAll || liked.tracks.length === 0) return;
@@ -73,6 +99,8 @@
       try {
         await downloadTrack(track);
         downloadProgress.current = i + 1;
+        // Update status immediately after each download
+        updateDownloadStatus();
       } catch (e) {
         console.error(`Failed to download track ${track.id}:`, e);
         // Continue with next track even if one fails
@@ -94,6 +122,97 @@
         }
       }
     }
+    // Update status after deletion
+    updateDownloadStatus();
+  }
+
+  // Import local tracks
+  let fileInput: HTMLInputElement | null = $state(null);
+
+  function handleFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of files) {
+      try {
+        // Generate unique ID for local track (negative to avoid conflicts with SoundCloud IDs)
+        const trackId = -Date.now() - Math.floor(Math.random() * 1000);
+        
+        // Create object URL for the file
+        const objectUrl = URL.createObjectURL(file);
+        
+        // Extract filename without extension as title
+        const fileName = file.name;
+        const title = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+        
+        // Try to extract artist from filename (Artist - Title format)
+        let artist = 'Local Artist';
+        let trackTitle = title;
+        const separatorMatch = title.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+        if (separatorMatch) {
+          artist = separatorMatch[1].trim();
+          trackTitle = separatorMatch[2].trim();
+        }
+
+        // Create track object
+        const localTrack: SCTrack = {
+          id: trackId,
+          title: trackTitle,
+          user: {
+            id: -1,
+            urn: `local:user:${trackId}`,
+            username: artist,
+            full_name: artist,
+            avatar_url: '',
+            city: '',
+            country_code: '',
+            description: 'Local artist',
+            followers_count: 0,
+            followings_count: 0,
+            track_count: 0,
+            playlist_count: 0,
+            permalink_url: '#',
+          },
+          duration: 0, // Will be determined when playing
+          streamable: true,
+          stream_url: objectUrl,
+          permalink_url: '#',
+          artwork_url: null,
+          waveform_url: '',
+          urn: `local:${trackId}`,
+          created_at: new Date().toISOString(),
+          genre: 'Local',
+          tag_list: '',
+          playback_count: 0,
+          likes_count: 0,
+          comment_count: 0,
+          access: 'playable',
+          media: {
+            transcodings: [{
+              url: objectUrl,
+              preset: 'mp3_0_0',
+              duration: 0,
+              snipped: false,
+              format: {
+                protocol: 'progressive',
+                mime_type: file.type || 'audio/mpeg'
+              },
+              quality: 'sq'
+            }]
+          }
+        };
+
+        // Add to liked tracks
+        likeTrack(localTrack);
+        console.log(`[Import] Added local track: ${trackTitle} by ${artist}`);
+      } catch (e) {
+        console.error(`[Import] Failed to import ${file.name}:`, e);
+      }
+    }
+    
+    // Reset input
+    input.value = '';
   }
 </script>
 
@@ -121,15 +240,24 @@
     <div class="flex items-center gap-4">
       <!-- Big green play button -->
       <button
-        onclick={playAll}
+        onclick={() => isPlayingFromLiked ? togglePlay() : playAll()}
         disabled={liked.count === 0}
         class="w-14 h-14 rounded-full bg-[#1db954] hover:bg-[#1ed760] hover:scale-105 flex items-center justify-center shadow-xl disabled:opacity-40 disabled:hover:scale-100"
       >
-        <Play class="w-6 h-6 text-black fill-current ml-0.5" />
+        {#if isPlayingFromLiked}
+          <Pause class="w-6 h-6 text-black fill-current" />
+        {:else}
+          <Play class="w-6 h-6 text-black fill-current ml-0.5" />
+        {/if}
       </button>
 
-      <!-- Shuffle button (green like screenshot) -->
-      <button class="text-[#1db954] hover:text-[#1ed760] hover:scale-105" title="Shuffle">
+      <!-- Shuffle button -->
+      <button 
+        onclick={playShuffled}
+        disabled={liked.count === 0}
+        class="text-[#b3b3b3] hover:text-white disabled:opacity-40 disabled:hover:scale-100 transition-all hover:scale-105" 
+        title="Shuffle play"
+      >
         <svg class="w-9 h-9" viewBox="0 0 24 24" fill="currentColor">
           <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
         </svg>
@@ -140,7 +268,7 @@
         <!-- Downloading state -->
         <button 
           disabled
-          class="text-[#1db954] disabled:opacity-100 relative"
+          class="text-[#1db954] disabled:opacity-100 relative transition-all"
           title={`Downloading ${downloadProgress.current}/${downloadProgress.total}`}
         >
           <div class="relative">
@@ -151,12 +279,12 @@
           </div>
         </button>
       {:else if allTracksDownloaded}
-        <!-- All downloaded - green with trash on hover -->
+        <!-- All downloaded -->
         <button 
           onmouseenter={() => isHoveringDownloadBtn = true}
           onmouseleave={() => isHoveringDownloadBtn = false}
           onclick={deleteAllDownloads}
-          class="text-[#1db954] hover:text-red-500 transition-colors"
+          class="text-[#b3b3b3] hover:text-red-500 disabled:opacity-40 disabled:hover:scale-100 transition-all hover:scale-105"
           title="Remove all downloads"
         >
           {#if isHoveringDownloadBtn}
@@ -170,7 +298,7 @@
         <button 
           onclick={downloadAll}
           disabled={liked.count === 0}
-          class="text-[#1db954] hover:text-[#1ed760] disabled:opacity-50 disabled:cursor-not-allowed relative"
+          class="text-[#b3b3b3] hover:text-white disabled:opacity-40 disabled:hover:scale-100 transition-all hover:scale-105 relative"
           title={`${downloadedCount} of ${liked.tracks.length} downloaded - Click to download remaining`}
         >
           <Download class="w-7 h-7" />
@@ -180,12 +308,29 @@
         <button 
           onclick={downloadAll}
           disabled={liked.count === 0}
-          class="text-[#b3b3b3] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          class="text-[#b3b3b3] hover:text-white disabled:opacity-40 disabled:hover:scale-100 transition-all hover:scale-105"
           title="Download all"
         >
           <Download class="w-7 h-7" />
         </button>
       {/if}
+
+      <!-- Import local tracks button -->
+      <button 
+        onclick={() => fileInput?.click()}
+        class="text-[#b3b3b3] hover:text-white transition-all hover:scale-105"
+        title="Import local audio files"
+      >
+        <Upload class="w-7 h-7" />
+      </button>
+      <input
+        bind:this={fileInput}
+        type="file"
+        accept="audio/*"
+        multiple
+        class="hidden"
+        onchange={handleFileSelect}
+      />
     </div>
 
     <div class="flex items-center gap-3">

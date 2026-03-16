@@ -148,6 +148,7 @@ export async function initStorage(): Promise<void> {
     'spotycloud_client_id',
     'spotycloud_offline_tracks',
     'spotycloud_onboarding_done',
+    'player_state',
   ];
 
   for (const key of keysToMigrate) {

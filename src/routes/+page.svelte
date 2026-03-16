@@ -4,6 +4,8 @@
   import { getLikedTracks } from '$lib/stores/liked.svelte';
   import { getRelatedTracks, getUserTracks } from '$lib/api/soundcloud';
   import { getArtworkUrl } from '$lib/utils/image';
+  import { getSettings } from '$lib/stores/settings.svelte';
+  import { getAudioAnalyser } from '$lib/stores/audioAnalyser.svelte';
   import { Play, Pause, Heart, Search, RefreshCw, Radio } from 'lucide-svelte';
   import TrackRow from '$lib/components/track/TrackRow.svelte';
   import type { SCTrack } from '$lib/api/types';
@@ -11,6 +13,48 @@
   const auth = getAuth();
   const player = getPlayer();
   const liked = getLikedTracks();
+  const appSettings = getSettings();
+  const analyser = getAudioAnalyser();
+
+  // Wave theme colors - must match settings page
+  const waveThemeColors: Record<string, [string, string, string, string]> = {
+    default: ['#1db954', '#5028b4', '#1ed760', '#0064c8'],
+    sunset:  ['#ff6b35', '#f7c948', '#e8115b', '#ff9a56'],
+    ocean:   ['#0077b6', '#00b4d8', '#023e8a', '#48cae4'],
+    purple:  ['#7b2ff7', '#c084fc', '#4c1d95', '#a855f7'],
+    rose:    ['#e11d48', '#fb7185', '#9f1239', '#fda4af'],
+    mono:    ['#525252', '#737373', '#404040', '#a3a3a3'],
+    neon:    ['#00ff88', '#ff00ff', '#00ccff', '#ffff00'],
+    warm:    ['#dc2626', '#f97316', '#b91c1c', '#fbbf24'],
+  };
+
+  // CSS variables for wave theming
+  let waveColor1 = $state('');
+  let waveColor2 = $state('');
+  let waveColor3 = $state('');
+  let waveColor4 = $state('');
+
+  // Reactive wave scale
+  let waveScale = $state(1);
+
+  // Update wave colors when theme changes
+  $effect(() => {
+    const colors = waveThemeColors[appSettings.waveTheme] ?? waveThemeColors.default;
+    waveColor1 = colors[0];
+    waveColor2 = colors[1];
+    waveColor3 = colors[2];
+    waveColor4 = colors[3];
+  });
+
+  // Audio-reactive wave effect
+  $effect(() => {
+    if (appSettings.reactiveWave && player.isPlaying && analyser.active) {
+      // Scale wave based on energy (bass weighted)
+      waveScale = 1 + analyser.energy * 0.3;
+    } else {
+      waveScale = 1;
+    }
+  });
 
   let showAllQueue = $state(false);
 
@@ -181,7 +225,7 @@
     <div class="home-gradient-layer default" class:visible={hoveredCard === null && !player.waveMode}></div>
     <div class="home-gradient-layer liked" class:visible={hoveredCard === 'liked'}></div>
     <div class="home-gradient-layer search" class:visible={hoveredCard === 'search'}></div>
-    <div class="home-gradient-layer wave-gradient" class:visible={hoveredCard === 'wave' || (hoveredCard === null && player.waveMode)}></div>
+    <div class="home-gradient-layer wave-gradient" class:visible={hoveredCard === 'wave' || (hoveredCard === null && player.waveMode)} style="--wave-color-1: {waveColor1}; --wave-color-2: {waveColor2}; --wave-color-3: {waveColor3}; --wave-color-4: {waveColor4}; --wave-scale: {waveScale};"></div>
   </div>
 
   {#if auth.isAuthenticated}
@@ -459,7 +503,8 @@
     position: absolute;
     inset: 0;
     opacity: 0;
-    transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity;
   }
   .home-gradient-layer.visible {
     opacity: 1;
@@ -475,13 +520,18 @@
   }
   .home-gradient-layer.wave-gradient {
     background:
-      radial-gradient(ellipse 80% 60% at 10% 0%, rgba(29, 185, 84, 0.6) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 50% at 60% 10%, rgba(80, 40, 180, 0.5) 0%, transparent 55%),
-      radial-gradient(ellipse 70% 60% at 90% 20%, rgba(30, 215, 96, 0.35) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 40% 30%, rgba(0, 100, 200, 0.3) 0%, transparent 50%),
+      radial-gradient(ellipse 80% 60% at 10% 0%, color-mix(in srgb, var(--wave-color-1, #1db954) 65%, transparent) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 60% 10%, color-mix(in srgb, var(--wave-color-2, #5028b4) 55%, transparent) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 60% at 90% 20%, color-mix(in srgb, var(--wave-color-3, #1ed760) 45%, transparent) 0%, transparent 50%),
+      radial-gradient(ellipse 50% 40% at 40% 30%, color-mix(in srgb, var(--wave-color-4, #0064c8) 40%, transparent) 0%, transparent 50%),
       linear-gradient(180deg, rgba(10, 10, 10, 0.3) 60%, #121212 100%);
     background-size: 200% 200%;
-    animation: wave-mesh 12s ease-in-out infinite alternate;
+    transform: scale(var(--wave-scale, 1));
+    transform-origin: center top;
+    transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s ease-out;
+  }
+  .home-gradient-layer.wave-gradient.visible {
+    animation: wave-mesh 25s ease-in-out infinite alternate;
   }
   @keyframes wave-mesh {
     0% { background-position: 0% 0%; }

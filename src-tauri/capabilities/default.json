@@ -10,7 +10,10 @@
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
     "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-hide",
     "core:window:allow-is-maximized",
+    "core:window:allow-is-visible",
     "core:window:allow-start-dragging",
     "core:window:allow-set-focus",
     "opener:default",
@@ -21,7 +24,8 @@
         { "url": "https://*.sndcdn.com/*" },
         { "url": "https://cf-hls-media.sndcdn.com/*" },
         { "url": "https://cf-hls-opus-media.sndcdn.com/*" },
-        { "url": "https://cf-media.sndcdn.com/*" }
+        { "url": "https://cf-media.sndcdn.com/*" },
+        { "url": "https://lrclib.net/*" }
       ]
     },
     "fs:allow-document-read-recursive",

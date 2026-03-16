@@ -16,9 +16,9 @@
   let justUpdated = $state(false);
   let updatedToVersion = $state('');
 
-  onMount(async () => {
+  onMount(() => {
     // Check if we just updated
-    await checkPostUpdate();
+    checkPostUpdate();
 
     // Check for new updates after 3 seconds
     setTimeout(() => checkForUpdate(), 3000);

@@ -1,5 +1,6 @@
 // 10-band equalizer using Web Audio API
 import { loadDataSync, saveData } from '$lib/utils/storage';
+import { connectAnalyser } from './audioAnalyser.svelte';
 
 const BANDS = [
   { freq: 60, label: '60' },
@@ -135,6 +136,13 @@ export function connectAudio(audioEl: HTMLAudioElement) {
       sourceNode.connect(filters[0]);
       isConnected = true;
       console.log('[EQ] Connected to audio element');
+
+      // Connect analyser for audio-reactive visualizations
+      try {
+        connectAnalyser(audioContext, sourceNode);
+      } catch (e) {
+        console.warn('[EQ] Failed to connect analyser:', e);
+      }
     } catch (e) {
       console.warn('[EQ] Failed to connect, audio will play without EQ:', e);
       // If connection fails, audio still plays through default output
@@ -170,6 +178,14 @@ export function toggleEq() {
     f.gain.value = enabled ? gains[i] : 0;
   });
   save();
+}
+
+export function getAudioContext(): AudioContext | null {
+  return audioContext;
+}
+
+export function getSourceNode(): MediaElementAudioSourceNode | null {
+  return sourceNode;
 }
 
 export function getEqualizer() {

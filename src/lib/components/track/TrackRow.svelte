@@ -6,6 +6,7 @@
   import { isLiked, toggleLike } from '$lib/stores/liked.svelte';
   import { getPlaylists, addTrackToPlaylist } from '$lib/stores/playlists.svelte';
   import { getDownloadStatus, isTrackDownloaded, downloadTrack, deleteDownloadedTrack, type DownloadStatus } from '$lib/stores/downloads.svelte';
+  import { toggleTrackSelection, clearTrackSelection } from '$lib/stores/trackSelection.svelte';
   import { Play, Pause, Heart, MoreHorizontal, ListMusic, Plus, Download, Check, Trash2 } from 'lucide-svelte';
 
   interface Props {
@@ -13,9 +14,11 @@
     index?: number;
     trackList?: SCTrack[];
     variant?: 'default' | 'featured';
+    playlistId?: string;
+    onRemoveFromPlaylist?: () => void;
   }
 
-  let { track, index = 0, trackList, variant = 'default' }: Props = $props();
+  let { track, index = 0, trackList, variant = 'default', playlistId, onRemoveFromPlaylist }: Props = $props();
 
   const player = getPlayer();
   const playlists = getPlaylists();
@@ -116,6 +119,40 @@
     play(track, trackList);
   }
 
+  function handleRowClick(e: MouseEvent) {
+    // Only handle Ctrl+Click for selection, regular clicks for play
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTrackSelection(track.id, true);
+    }
+  }
+
+  function handleContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Check if Ctrl is pressed for multi-selection
+    const isMultiSelect = e.ctrlKey || e.metaKey;
+    
+    // Toggle selection
+    toggleTrackSelection(track.id, isMultiSelect);
+    
+    // Dispatch custom event for ContextMenu
+    const event = new CustomEvent('trackcontextmenu', {
+      bubbles: true,
+      detail: { 
+        x: e.clientX, 
+        y: e.clientY, 
+        track,
+        trackList,
+        isLiked: liked,
+        isMultiSelect
+      }
+    });
+    rowEl?.dispatchEvent(event);
+  }
+
   function openMenu(e: MouseEvent) {
     e.stopPropagation();
     if (menuBtnRef) {
@@ -183,7 +220,9 @@
     class="track-row group {isCurrentTrack ? 'bg-white/[.06]' : ''}"
     role="row"
     tabindex="0"
+    onclick={handleRowClick}
     ondblclick={handlePlay}
+    oncontextmenu={handleContextMenu}
   >
     <!-- # / Play icon -->
     <div class="w-[40px] flex items-center justify-center shrink-0 text-center">
@@ -275,48 +314,31 @@
     class="track-menu"
     style="left: {menuPos.x}px; top: {menuPos.y}px"
   >
-    <!-- Download option -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="track-menu-item"
-      onmouseenter={() => { showPlaylistSub = false; showDownloadSub = true; }}
-    >
-      {#if downloadState.status === 'downloading'}
-        <div class="w-4 h-4 relative">
-          <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-dashoffset="20" stroke-linecap="round" />
-          </svg>
-        </div>
+    <!-- Download option — single action, no submenu -->
+    {#if downloadState.status === 'downloading'}
+      <div class="track-menu-item" style="opacity: 0.6; cursor: default;">
+        <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-dashoffset="20" stroke-linecap="round" />
+        </svg>
         <span class="flex-1">Downloading...</span>
-      {:else if isDownloaded}
-        <Check class="w-4 h-4 text-[#1db954]" />
-        <span class="flex-1 text-[#1db954]">Downloaded</span>
-      {:else}
+      </div>
+    {:else if isDownloaded}
+      <button class="track-menu-item" style="color: #f15e6c;" onclick={() => { handleDeleteDownload(); closeMenu(); }}>
+        <Trash2 class="w-4 h-4" />
+        <span class="flex-1">Remove download</span>
+      </button>
+    {:else}
+      <button class="track-menu-item" onclick={() => { handleDownload(); closeMenu(); }}>
         <Download class="w-4 h-4" />
         <span class="flex-1">Download</span>
-      {/if}
-      <svg class="w-3 h-3 ml-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-    </div>
+      </button>
+    {/if}
 
-    {#if showDownloadSub}
-      <div class="track-submenu">
-        {#if isDownloaded}
-          <button class="track-menu-item text-red-400 hover:text-red-300" onclick={handleDeleteDownload}>
-            <Trash2 class="w-4 h-4" />
-            <span>Remove download</span>
-          </button>
-        {:else if downloadState.status === 'downloading'}
-          <div class="px-3 py-2 text-xs text-[#b3b3b3]">
-            Downloading track...
-          </div>
-        {:else}
-          <button class="track-menu-item" onclick={() => { handleDownload(); closeMenu(); }}>
-            <Download class="w-4 h-4" />
-            <span>Download for offline</span>
-          </button>
-        {/if}
-      </div>
+    {#if onRemoveFromPlaylist}
+      <button class="track-menu-item" style="color: #f15e6c;" onclick={() => { onRemoveFromPlaylist?.(); closeMenu(); }}>
+        <Trash2 class="w-4 h-4" />
+        <span class="flex-1">Remove from playlist</span>
+      </button>
     {/if}
 
     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -367,7 +389,7 @@
     position: relative;
     overflow: hidden;
   }
-  .marquee-wrap.has-overflow {
+  :global(.marquee-wrap.has-overflow) {
     mask-image: linear-gradient(to right, transparent 0px, #000 8px, #000 calc(100% - 24px), transparent 100%);
     -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 8px, #000 calc(100% - 24px), transparent 100%);
   }
@@ -375,7 +397,7 @@
     white-space: nowrap;
     display: inline-block;
   }
-  .marquee-wrap.has-overflow .marquee-text {
+  :global(.marquee-wrap.has-overflow) .marquee-text {
     animation: marquee-scroll var(--marquee-duration, 5s) ease-in-out 1s infinite alternate;
   }
   @keyframes marquee-scroll {

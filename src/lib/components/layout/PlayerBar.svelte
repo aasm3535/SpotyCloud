@@ -3,9 +3,35 @@
   import { getArtworkUrl } from '$lib/utils/image';
   import { formatTime } from '$lib/utils/format';
   import { isLiked, toggleLike } from '$lib/stores/liked.svelte';
-  import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Volume2, Volume1, VolumeX, Heart, ThumbsDown, Radio, X } from 'lucide-svelte';
+  import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Volume2, Volume1, VolumeX, Heart, ThumbsUp, ThumbsDown, Radio, X, Timer, Moon, Mic2 } from 'lucide-svelte';
+  import { getSleepTimer, startSleepTimer, stopSleepTimer } from '$lib/stores/sleepTimer.svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
 
   const player = getPlayer();
+  const sleepTimer = getSleepTimer();
+  
+  let showSleepTimerMenu = $state(false);
+  
+  let isLyricsPage = $derived($page.url.pathname === '/lyrics');
+  
+  const timerOptions = [
+    { label: '5 min', value: 5 },
+    { label: '10 min', value: 10 },
+    { label: '15 min', value: 15 },
+    { label: '30 min', value: 30 },
+    { label: '45 min', value: 45 },
+    { label: '60 min', value: 60 },
+  ];
+  
+  function formatTimeLeft(minutes: number): string {
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    return `${minutes}m`;
+  }
 
   function handleLike() {
     if (player.currentTrack) toggleLike(player.currentTrack);
@@ -33,6 +59,13 @@
 
   function handleVolumeChange(e: Event) {
     setVolume(parseFloat((e.target as HTMLInputElement).value));
+  }
+
+  function handleVolumeWheel(e: WheelEvent) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    const newVolume = Math.max(0, Math.min(1, player.volume + delta));
+    setVolume(newVolume);
   }
 
   $effect(() => {
@@ -71,56 +104,81 @@
       requestAnimationFrame(() => setupMarquees(nowPlayingEl!));
     }
   });
+
+  // Update marquee on resize
+  $effect(() => {
+    const handleResize = () => {
+      if (nowPlayingEl) {
+        setupMarquees(nowPlayingEl);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
 </script>
 
 <svelte:window onmousemove={handleSeekMove} onmouseup={handleSeekEnd} />
 
-<footer class="h-[72px] bg-black flex items-center px-3 py-2 shrink-0">
+<footer class="h-[80px] bg-black flex items-center px-4 shrink-0">
   <!-- Left: Now playing -->
-  <div class="flex items-center gap-3 w-[30%] min-w-0">
+  <div class="flex items-center gap-4 w-[30%] min-w-0">
     {#if player.currentTrack}
       {#if player.currentTrack.artwork_url}
         <img
           src={getArtworkUrl(player.currentTrack.artwork_url, 'medium')}
           alt=""
-          class="w-14 h-14 rounded shadow-md object-cover shrink-0 bg-[#282828] aspect-square"
+          class="w-16 h-16 rounded-lg shadow-md object-cover shrink-0 bg-[#282828] aspect-square"
         />
       {:else}
-        <div class="w-11 h-11 rounded shadow-md bg-[#282828] flex items-center justify-center shrink-0">
-          <svg class="w-6 h-6 text-[#535353]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="w-16 h-16 rounded-lg shadow-md bg-[#282828] flex items-center justify-center shrink-0">
+          <svg class="w-7 h-7 text-[#535353]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
           </svg>
         </div>
       {/if}
 
-      <div bind:this={nowPlayingEl} class="min-w-0">
-        <div class="flex items-center gap-2">
-          <div class="marquee-wrap min-w-0">
-            <p class="marquee-text text-[13px] font-medium text-white hover:underline cursor-pointer leading-tight">{player.currentTrack.title}</p>
+      <div bind:this={nowPlayingEl} class="min-w-0 flex-1">
+        <div class="flex items-center gap-2" style="margin-bottom: -2px;">
+          <div class="marquee-wrap min-w-0" style="flex: 0 1 auto; max-width: calc(100% - 44px);">
+            <p class="marquee-text text-[15px] font-medium text-white hover:underline cursor-pointer leading-snug">{player.currentTrack.title}</p>
           </div>
-          <button
-            class="like-btn shrink-0 {liked ? 'text-[#1db954]' : player.isWaveTrack ? 'text-[#b3b3b3] hover:text-[#1db954] wave-heart' : 'text-[#b3b3b3] hover:text-white'}"
-            title={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
-            onclick={handleLike}
-          >
-            {#if liked}
-              <Heart class="w-3.5 h-3.5 fill-current" />
+          <div class="flex items-center gap-2 shrink-0">
+            {#if player.waveMode}
+              <button
+                class="like-btn shrink-0 wave-like-btn {liked ? 'text-[#1db954]' : 'text-[#b3b3b3] hover:text-[#1db954]'}"
+                title={liked ? 'Liked!' : 'Like this track'}
+                onclick={handleLike}
+              >
+                {#if liked}
+                  <ThumbsUp class="w-[18px] h-[18px] fill-current" />
+                {:else}
+                  <ThumbsUp class="w-[18px] h-[18px]" />
+                {/if}
+              </button>
+              <button
+                class="like-btn shrink-0 wave-dislike-btn text-[#b3b3b3] hover:text-[#e85d5d]"
+                title="Dislike — skip and don't recommend"
+                onclick={() => { if (player.currentTrack) waveDislike(player.currentTrack.id); }}
+              >
+                <ThumbsDown class="w-[18px] h-[18px]" />
+              </button>
             {:else}
-              <Heart class="w-3.5 h-3.5" />
+              <button
+                class="like-btn shrink-0 {liked ? 'text-[#1db954]' : 'text-[#b3b3b3] hover:text-white'}"
+                title={liked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                onclick={handleLike}
+              >
+                {#if liked}
+                  <Heart class="w-[18px] h-[18px] fill-current" />
+                {:else}
+                  <Heart class="w-[18px] h-[18px]" />
+                {/if}
+              </button>
             {/if}
-          </button>
-          {#if player.waveMode}
-            <button
-              class="like-btn shrink-0 text-[#b3b3b3] hover:text-[#e85d5d]"
-              title="Dislike — skip and don't recommend"
-              onclick={() => { if (player.currentTrack) waveDislike(player.currentTrack.id); }}
-            >
-              <ThumbsDown class="w-3.5 h-3.5" />
-            </button>
-          {/if}
+          </div>
         </div>
-        <div class="flex items-center gap-1.5">
-          <p class="text-[11px] text-[#b3b3b3] truncate hover:underline hover:text-white cursor-pointer leading-tight">{player.currentTrack.user.username}</p>
+        <div class="flex items-center gap-2">
+          <p class="text-[13px] text-[#b3b3b3] truncate hover:underline hover:text-white cursor-pointer leading-snug">{player.currentTrack.user.username}</p>
           {#if player.waveMode}
             <span class="wave-badge">
               <Radio class="w-2.5 h-2.5" />
@@ -130,8 +188,8 @@
         </div>
       </div>
     {:else}
-      <div class="w-14 h-14 rounded bg-[#282828] flex items-center justify-center shrink-0 aspect-square">
-        <svg class="w-6 h-6 text-[#535353]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div class="w-16 h-16 rounded-lg bg-[#282828] flex items-center justify-center shrink-0 aspect-square">
+        <svg class="w-7 h-7 text-[#535353]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
         </svg>
       </div>
@@ -146,38 +204,38 @@
       </div>
     {/if}
 
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-5">
       <button
         onclick={toggleShuffle}
         class="ctrl-btn {player.isShuffle ? 'shuffle-active' : ''}"
         title="Shuffle"
       >
-        <Shuffle class="w-4 h-4" />
+        <Shuffle class="w-5 h-5" />
         {#if player.isShuffle}
           <span class="active-dot"></span>
         {/if}
       </button>
 
       <button onclick={prev} class="ctrl-btn text-white" title="Previous">
-        <SkipBack class="w-4 h-4 fill-current" />
+        <SkipBack class="w-5 h-5 fill-current" />
       </button>
 
       <button
         onclick={togglePlay}
-        class="w-8 h-8 rounded-full bg-white hover:scale-[1.06] flex items-center justify-center"
+        class="play-btn"
         title={player.isPlaying ? 'Pause' : 'Play'}
       >
         {#if player.isLoading}
-          <div class="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+          <div class="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
         {:else if player.isPlaying}
-          <Pause class="w-4 h-4 text-black fill-current" />
+          <Pause class="w-5 h-5 text-black fill-current" />
         {:else}
-          <Play class="w-4 h-4 text-black fill-current ml-0.5" />
+          <Play class="w-5 h-5 text-black fill-current" />
         {/if}
       </button>
 
       <button onclick={next} class="ctrl-btn text-white" title="Next">
-        <SkipForward class="w-4 h-4 fill-current" />
+        <SkipForward class="w-5 h-5 fill-current" />
       </button>
 
       <button
@@ -186,9 +244,9 @@
         title="Repeat"
       >
         {#if player.repeatMode === 'one'}
-          <Repeat1 class="w-4 h-4" />
+          <Repeat1 class="w-5 h-5" />
         {:else}
-          <Repeat class="w-4 h-4" />
+          <Repeat class="w-5 h-5" />
         {/if}
         {#if player.repeatMode !== 'none'}
           <span class="active-dot"></span>
@@ -197,7 +255,7 @@
     </div>
 
     <!-- Seek bar -->
-    <div class="flex items-center gap-2 w-full mt-1">
+    <div class="flex items-center gap-2 w-full mt-2">
       <span class="text-[11px] text-[#a7a7a7] w-10 text-right tabular-nums">{formatTime(player.currentTime)}</span>
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -228,6 +286,82 @@
         <X class="w-3 h-3" />
       </button>
     {/if}
+
+    <!-- Lyrics Button -->
+    <button
+      onclick={() => isLyricsPage ? history.back() : goto('/lyrics')}
+      class="ctrl-btn"
+      style:color={isLyricsPage ? '#1db954' : undefined}
+      title={isLyricsPage ? 'Close lyrics' : 'Show lyrics'}
+    >
+      <Mic2 class="w-4 h-4" />
+    </button>
+
+    <!-- Sleep Timer -->
+    <div class="relative">
+      <button
+        onclick={() => showSleepTimerMenu = !showSleepTimerMenu}
+        class="ctrl-btn {sleepTimer.isActive ? 'text-[#1db954]' : ''}"
+        title={sleepTimer.isActive ? `Sleep timer: ${formatTimeLeft(sleepTimer.minutesLeft)} left` : 'Sleep timer'}
+      >
+        {#if sleepTimer.isActive}
+          <div class="relative">
+            {#if sleepTimer.isFading}
+              <span class="text-[10px] font-bold">FADE</span>
+            {:else}
+              <Timer class="w-4 h-4" />
+              <span class="absolute -top-1 -right-1 w-2 h-2 bg-[#1db954] rounded-full animate-pulse"></span>
+            {/if}
+          </div>
+        {:else}
+          <Moon class="w-4 h-4" />
+        {/if}
+      </button>
+
+      {#if showSleepTimerMenu}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div 
+          class="absolute bottom-full right-0 mb-2 bg-[#282828] rounded-lg shadow-xl p-2 min-w-[140px] z-50"
+          onclick={(e) => e.stopPropagation()}
+        >
+          <div class="text-xs text-[#b3b3b3] px-3 py-2 font-medium">Sleep Timer</div>
+          {#if sleepTimer.isActive}
+            <div class="px-3 py-1 text-sm text-[#1db954] font-medium">
+              {#if sleepTimer.isFading}
+                <span class="animate-pulse">Fading out...</span>
+              {:else}
+                {formatTimeLeft(sleepTimer.minutesLeft)} left
+              {/if}
+            </div>
+            <div class="h-px bg-[#3e3e3e] my-1"></div>
+          {/if}
+          {#each timerOptions as option}
+            <button
+              onclick={() => { startSleepTimer(option.value); showSleepTimerMenu = false; }}
+              class="w-full text-left px-3 py-2 text-sm text-white hover:bg-[#3e3e3e] rounded transition-colors"
+              class:bg-[#3e3e3e]={sleepTimer.totalMinutes === option.value && sleepTimer.isActive}
+            >
+              {option.label}
+            </button>
+          {/each}
+          {#if sleepTimer.isActive}
+            <div class="h-px bg-[#3e3e3e] my-1"></div>
+            <button
+              onclick={() => { stopSleepTimer(); showSleepTimerMenu = false; }}
+              class="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-[#3e3e3e] rounded transition-colors"
+            >
+              Turn Off
+            </button>
+          {/if}
+        </div>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div 
+          class="fixed inset-0 z-40" 
+          onclick={() => showSleepTimerMenu = false}
+        ></div>
+      {/if}
+    </div>
+
     <button
       onclick={() => setVolume(player.volume > 0 ? 0 : 0.7)}
       class="ctrl-btn"
@@ -242,7 +376,7 @@
       {/if}
     </button>
 
-    <div class="volume-bar group">
+    <div class="volume-bar group" onwheel={handleVolumeWheel} role="slider" aria-label="Volume" tabindex="0" aria-valuenow={Math.round(player.volume * 100)}>
       <div class="vol-track">
         <div class="vol-fill" style="width: {player.volume * 100}%">
           <div class="vol-thumb"></div>
@@ -261,41 +395,63 @@
   </div>
 </footer>
 
+
+
 <style>
   /* Marquee / fade overflow effect */
   .marquee-wrap {
     position: relative;
     overflow: hidden;
   }
-  .marquee-wrap.has-overflow {
-    mask-image: linear-gradient(to right, transparent 0px, #000 8px, #000 calc(100% - 24px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 8px, #000 calc(100% - 24px), transparent 100%);
+  :global(.marquee-wrap.has-overflow) {
+    mask-image: linear-gradient(to right, transparent 0px, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0px, #000 8px, #000 calc(100% - 8px), transparent 100%);
   }
   .marquee-text {
     white-space: nowrap;
     display: inline-block;
+  }
+  :global(.marquee-wrap.has-overflow) .marquee-text {
+    animation: marquee-scroll var(--marquee-duration, 5s) ease-in-out 1s infinite alternate;
+  }
+  @keyframes marquee-scroll {
+    0%, 20% { transform: translateX(0); }
+    80%, 100% { transform: translateX(var(--marquee-offset, -30%)); }
   }
 
   .like-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
-    transition: transform 0.15s, color 0.15s;
+    width: 28px;
+    height: 28px;
+    transition: color 0.15s ease-out, opacity 0.15s ease-out;
   }
   .like-btn:hover {
-    transform: scale(1.15);
+    opacity: 0.85;
   }
-  .wave-heart {
-    animation: wave-pulse 2s ease-in-out 1;
+  .like-btn:active {
+    opacity: 0.7;
   }
-  @keyframes wave-pulse {
-    0%, 100% { transform: scale(1); }
-    15% { transform: scale(1.3); color: #1db954; }
-    30% { transform: scale(1); }
-    45% { transform: scale(1.2); color: #1db954; }
-    60% { transform: scale(1); }
+
+  /* Wave mode like/dislike buttons */
+  .wave-like-btn {
+    transition: color 0.15s ease-out, opacity 0.15s ease-out;
+  }
+  .wave-like-btn:hover {
+    opacity: 0.8;
+  }
+  .wave-like-btn:active {
+    opacity: 0.6;
+  }
+  .wave-dislike-btn {
+    transition: color 0.15s ease-out, opacity 0.15s ease-out;
+  }
+  .wave-dislike-btn:hover {
+    opacity: 0.8;
+  }
+  .wave-dislike-btn:active {
+    opacity: 0.6;
   }
 
   .wave-badge {
@@ -323,19 +479,15 @@
     color: #1db954;
     background: rgba(29, 185, 84, 0.1);
     font-size: 11px;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease-out, color 0.15s ease-out;
     flex-shrink: 0;
   }
   .wave-stop-btn:hover {
     background: rgba(29, 185, 84, 0.2);
     color: #1ed760;
   }
-  .marquee-wrap.has-overflow .marquee-text {
-    animation: marquee-scroll var(--marquee-duration, 5s) ease-in-out 1s infinite alternate;
-  }
-  @keyframes marquee-scroll {
-    0%, 20% { transform: translateX(0); }
-    80%, 100% { transform: translateX(var(--marquee-offset, -30%)); }
+  .wave-stop-btn:active {
+    background: rgba(29, 185, 84, 0.3);
   }
 
   .ctrl-btn {
@@ -343,12 +495,19 @@
     align-items: center;
     justify-content: center;
     color: #b3b3b3;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 9999px;
+    transition: color 0.15s ease-out, background-color 0.15s ease-out;
+    position: relative;
+    flex-shrink: 0;
   }
   .ctrl-btn:hover {
     color: #fff;
+    background-color: rgba(255,255,255,0.08);
+  }
+  .ctrl-btn:active {
+    background-color: rgba(255,255,255,0.15);
   }
   .active-dot {
     position: absolute;
@@ -367,6 +526,25 @@
   .ctrl-btn.repeat-active {
     color: #1db954;
     position: relative;
+  }
+
+  .play-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: background-color 0.15s ease-out, box-shadow 0.2s ease-out;
+  }
+  .play-btn:hover {
+    background: #c0c0c0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  }
+  .play-btn:active {
+    background: #a0a0a0;
   }
   .seek-bar {
     flex: 1;

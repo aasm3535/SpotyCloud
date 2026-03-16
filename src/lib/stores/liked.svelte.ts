@@ -22,8 +22,12 @@ export async function initLiked() {
 }
 
 function saveAll() {
-  saveData(IDS_KEY, likedTrackIds);
-  saveData(DATA_KEY, [...likedTrackData.values()]);
+  // Filter out local tracks (negative IDs) - they have Object URLs that expire after session
+  const persistentIds = likedTrackIds.filter(id => id > 0);
+  const persistentData = [...likedTrackData.values()].filter(t => t.id > 0);
+  
+  saveData(IDS_KEY, persistentIds);
+  saveData(DATA_KEY, persistentData);
 }
 
 export function getLikedTracks() {

@@ -1,9 +1,12 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { exit } from '@tauri-apps/plugin-process';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { setQuery } from '$lib/stores/search.svelte';
+  import { getSettings } from '$lib/stores/settings.svelte';
 
+  const appSettings = getSettings();
   let isMaximized = $state(false);
   let searchQuery = $state('');
   let searchFocused = $state(false);
@@ -24,7 +27,11 @@
   }
 
   async function close() {
-    await getCurrentWindow().close();
+    if (appSettings.closeToTray) {
+      await getCurrentWindow().hide();
+    } else {
+      await exit(0);
+    }
   }
 
   function handleSearch() {
