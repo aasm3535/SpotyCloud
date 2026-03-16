@@ -120,6 +120,8 @@ jobs:
           && sudo apt install gh -y
 
       - name: Wait for release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           TAG="${{ steps.get_version.outputs.tag }}"
@@ -134,6 +136,8 @@ jobs:
           done
 
       - name: Download signatures from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           TAG="${{ steps.get_version.outputs.tag }}"
