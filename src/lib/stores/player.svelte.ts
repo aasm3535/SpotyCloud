@@ -9,6 +9,7 @@ import { getRelatedTracks, searchTracks, getTrendingTracks } from '$lib/api/soun
 import { getLikedTracks } from './liked.svelte';
 import { loadDataSync, saveData } from '$lib/utils/storage';
 import { getSavedPlayerState, savePlayerVolume, savePlayerShuffle, savePlayerRepeat, savePlayerLastTrack } from './settings.svelte';
+import { updateMediaSession as updateNativeMediaSession, clearMediaSession as clearNativeMediaSession } from '$lib/api/mediaSession';
 
 // Read local file and create blob URL for playback
 async function getLocalFileUrl(filePath: string): Promise<string> {
@@ -73,6 +74,7 @@ async function updateDiscordRpc(track: SCTrack, playing = true) {
 
 function clearDiscordRpc() {
   invoke('discord_rpc_clear').catch((e) => console.warn('[Discord RPC] clear failed:', e));
+  clearNativeMediaSession();
 }
 
 // Load persisted player state
@@ -432,6 +434,13 @@ async function loadAndPlay(track: SCTrack) {
   await savePlayerLastTrack(track.id);
   updateMediaSession();
   await updateDiscordRpc(track);
+  await updateNativeMediaSession({
+    title: track.title,
+    artist: track.user.username,
+    artworkUrl: track.artwork_url ? track.artwork_url.replace('-large', '-t500x500') : undefined,
+    durationSecs: track.duration ? Math.round(track.duration / 1000) : undefined,
+    isPlaying: true
+  });
 
   // Track history for wave mode diversity
   if (waveMode) {
@@ -594,6 +603,13 @@ export function pause() {
   // Update Discord RPC to show paused state (no timestamps = no progress bar)
   if (currentTrack) {
     updateDiscordRpc(currentTrack, false);
+    updateNativeMediaSession({
+      title: currentTrack.title,
+      artist: currentTrack.user.username,
+      artworkUrl: currentTrack.artwork_url ? currentTrack.artwork_url.replace('-large', '-t500x500') : undefined,
+      durationSecs: currentTrack.duration ? Math.round(currentTrack.duration / 1000) : undefined,
+      isPlaying: false
+    });
   }
 }
 
@@ -602,6 +618,13 @@ export function resume() {
   // Update Discord RPC to show playing state with timestamps
   if (currentTrack) {
     updateDiscordRpc(currentTrack, true);
+    updateNativeMediaSession({
+      title: currentTrack.title,
+      artist: currentTrack.user.username,
+      artworkUrl: currentTrack.artwork_url ? currentTrack.artwork_url.replace('-large', '-t500x500') : undefined,
+      durationSecs: currentTrack.duration ? Math.round(currentTrack.duration / 1000) : undefined,
+      isPlaying: true
+    });
   }
 }
 

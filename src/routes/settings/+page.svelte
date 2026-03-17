@@ -3,8 +3,7 @@
   import { goto } from '$app/navigation';
   import { resetOnboarding } from '$lib/stores/onboarding.svelte';
   import { getEqualizer, setBandGain, applyPreset, toggleEq, type PresetName } from '$lib/stores/equalizer.svelte';
-  import { getSettings, setAlwaysCollapsedSidebar, setCloseToTray, setDiscordRpcEnabled, setDiscordShowListenButton, setWaveTheme, setReactiveWave, setDisableCardHover, setLyricsGlow, setLyricsFontSize, setLyricsTextAlign, setHotkey, resetHotkeys, type HotkeyBinding, type HotkeyAction } from '$lib/stores/settings.svelte';
-import HotkeyInput from '$lib/components/settings/HotkeyInput.svelte';
+  import { getSettings, setAlwaysCollapsedSidebar, setCloseToTray, setDiscordRpcEnabled, setDiscordShowListenButton, setWaveTheme, setReactiveWave, setDisableCardHover, setLyricsGlow, setLyricsFontSize, setLyricsTextAlign } from '$lib/stores/settings.svelte';
   import { Check, Copy, AlertCircle, Music, ExternalLink, Terminal, MousePointer, Info, Link, RotateCcw, AudioLines, PanelLeftClose, MessageSquare, Palette, Settings2, MonitorDown, X, Activity } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
@@ -98,38 +97,7 @@ import HotkeyInput from '$lib/components/settings/HotkeyInput.svelte';
     { id: 'warm', name: 'Warm', colors: ['#dc2626', '#f97316', '#b91c1c', '#fbbf24'] },
   ];
 
-import { registerShortcut, unregisterAllShortcuts, registerAllShortcuts } from '$lib/api/hotkeys';
 
-  // Hotkey configuration
-  const hotkeyActions: { action: HotkeyAction; label: string; description: string }[] = [
-    { action: 'playPause', label: 'Play/Pause', description: 'Toggle playback' },
-    { action: 'nextTrack', label: 'Next Track', description: 'Skip to next track' },
-    { action: 'prevTrack', label: 'Previous Track', description: 'Go to previous track' },
-    { action: 'volumeUp', label: 'Volume Up', description: 'Increase volume' },
-    { action: 'volumeDown', label: 'Volume Down', description: 'Decrease volume' },
-    { action: 'mute', label: 'Mute', description: 'Toggle mute' },
-  ];
-
-  async function handleHotkeyChange(action: HotkeyAction, binding: HotkeyBinding) {
-    await setHotkey(action, binding);
-    // Register with backend
-    try {
-      await registerShortcut(binding);
-    } catch (error) {
-      console.error('Failed to register shortcut:', error);
-    }
-  }
-
-  async function handleResetHotkeys() {
-    await resetHotkeys();
-    // Re-register all shortcuts with backend
-    try {
-      await unregisterAllShortcuts();
-      await registerAllShortcuts(appSettings.hotkeys);
-    } catch (error) {
-      console.error('Failed to reset shortcuts:', error);
-    }
-  }
 </script>
 
 <div class="max-w-2xl mx-auto">
@@ -481,39 +449,6 @@ import { registerShortcut, unregisterAllShortcuts, registerAllShortcuts } from '
           </button>
         </div>
       </div>
-    </div>
-
-    <!-- Hotkeys Settings -->
-    <div class="settings-card">
-      <div class="flex items-center justify-between">
-        <h2 class="settings-section-title">Hotkeys</h2>
-        <button
-          onclick={handleResetHotkeys}
-          class="text-sm text-[#b3b3b3] hover:text-white transition-colors"
-        >
-          Reset to defaults
-        </button>
-      </div>
-      <p class="text-sm text-[#b3b3b3] mb-4">Global shortcuts that work even when the app is not focused</p>
-
-      {#each hotkeyActions as { action, label, description }}
-        <div class="setting-row">
-          <div class="setting-info">
-            <div>
-              <p class="setting-name">{label}</p>
-              <p class="setting-desc">{description}</p>
-            </div>
-          </div>
-          <HotkeyInput
-            action={action}
-            binding={appSettings.hotkeys[action]}
-            onChange={(binding) => handleHotkeyChange(action, binding)}
-          />
-        </div>
-        {#if action !== 'mute'}
-          <div class="setting-divider"></div>
-        {/if}
-      {/each}
     </div>
 
     {/if}

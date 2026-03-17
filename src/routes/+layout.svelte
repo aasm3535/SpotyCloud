@@ -18,10 +18,10 @@
   import { initStorage } from '$lib/utils/storage';
   import { initLiked } from '$lib/stores/liked.svelte';
   import { initPlaylists } from '$lib/stores/playlists.svelte';
-import { initSettings, getSettings } from '$lib/stores/settings.svelte';
+import { initSettings } from '$lib/stores/settings.svelte';
 import { initAuthStorage } from '$lib/api/auth';
-import { registerAllShortcuts } from '$lib/api/hotkeys';
-import { initGlobalShortcutListener } from '$lib/utils/globalShortcuts';
+import { listen } from '@tauri-apps/api/event';
+import { next, prev, togglePlay } from '$lib/stores/player.svelte';
 
   interface Props {
     children: Snippet;
@@ -32,6 +32,8 @@ import { initGlobalShortcutListener } from '$lib/utils/globalShortcuts';
   const headerColor = getHeaderColor();
   const onboarding = getOnboarding();
   let storageReady = $state(false);
+
+  let mediaUnsubscribe: (() => void) | null = null;
 
   onMount(async () => {
     // 1. Load all data from persistent file storage (migrates localStorage)
@@ -48,25 +50,41 @@ import { initGlobalShortcutListener } from '$lib/utils/globalShortcuts';
     initOnboarding();
     initUsername();
 
-    // 3. Register global hotkeys from settings
-    const settings = getSettings();
+    // 3. Initialize media session event listener for system media controls
     try {
-      await registerAllShortcuts(settings.hotkeys);
-      console.log('[Hotkeys] Global shortcuts registered successfully');
+      mediaUnsubscribe = await listen<string>('media-control', (event) => {
+        console.log('[MediaControl] Received:', event.payload);
+        switch (event.payload) {
+          case 'play':
+            togglePlay();
+            break;
+          case 'pause':
+            togglePlay();
+            break;
+          case 'next':
+            next();
+            break;
+          case 'previous':
+            prev();
+            break;
+        }
+      });
     } catch (error) {
-      console.error('[Hotkeys] Failed to register shortcuts:', error);
-    }
-    
-    // 4. Initialize global shortcut listener
-    try {
-      await initGlobalShortcutListener();
-    } catch (error) {
-      console.error('[Hotkeys] Failed to initialize listener:', error);
+      console.error('[MediaControl] Failed to initialize listener:', error);
     }
 
     storageReady = true;
 
     invoke('show_window');
+  });
+  
+  // Cleanup on component destroy
+  $effect(() => {
+    return () => {
+      if (mediaUnsubscribe) {
+        mediaUnsubscribe();
+      }
+    };
   });
 
   $effect(() => {

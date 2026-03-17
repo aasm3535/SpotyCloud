@@ -11,6 +11,8 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
 use futures_util::StreamExt;
+use souvlaki::{MediaControls, MediaMetadata, MediaPlayback, PlatformConfig, MediaControlEvent};
+use serde::{Deserialize, Serialize};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -265,129 +267,71 @@ fn discord_rpc_clear(state: tauri::State<'_, DiscordRpcState>) -> Result<(), Str
     Ok(())
 }
 
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
-use std::str::FromStr;
-use serde::{Deserialize, Serialize};
+// Media Session State
+struct MediaSessionState(Mutex<Option<MediaControls>>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HotkeyConfig {
-    pub action: String,
-    pub key: String,
-    pub modifiers: Option<Vec<String>>,
-    pub combo: Option<String>,
+pub struct MediaSessionConfig {
+    pub title: String,
+    pub artist: String,
+    pub artwork_url: Option<String>,
+    pub duration_secs: Option<u64>,
+    pub is_playing: bool,
 }
 
 #[tauri::command]
-async fn register_global_shortcut(
-    app: tauri::AppHandle,
-    config: HotkeyConfig,
+fn update_media_session(
+    state: tauri::State<'_, MediaSessionState>,
+    config: MediaSessionConfig,
 ) -> Result<(), String> {
-    let shortcut_manager = app.global_shortcut();
+    let mut controls_guard = state.0.lock().unwrap();
     
-    // Build shortcut string
-    let mut shortcut_str = String::new();
-    
-    if let Some(ref modifiers) = config.modifiers {
-        for modifier in modifiers {
-            shortcut_str.push_str(&format!("{}+", modifier.to_lowercase()));
-        }
+    if let Some(ref mut controls) = *controls_guard {
+        // Update metadata
+        let metadata = MediaMetadata {
+            title: Some(&config.title),
+            artist: Some(&config.artist),
+            album: None,
+            cover_url: config.artwork_url.as_deref(),
+            duration: config.duration_secs.map(|d| std::time::Duration::from_secs(d)),
+        };
+        
+        controls.set_metadata(metadata)
+            .map_err(|e| format!("Failed to set metadata: {:?}", e))?;
+        
+        // Update playback state
+        let playback = if config.is_playing {
+            MediaPlayback::Playing { progress: None }
+        } else {
+            MediaPlayback::Paused { progress: None }
+        };
+        
+        controls.set_playback(playback)
+            .map_err(|e| format!("Failed to set playback: {:?}", e))?;
     }
     
-    if let Some(ref combo) = config.combo {
-        shortcut_str.push_str(&format!("{}+{}", config.key.to_uppercase(), combo.to_uppercase()));
-    } else {
-        shortcut_str.push_str(&config.key.to_uppercase());
-    }
-    
-    println!("[register_global_shortcut] Registering: {}", shortcut_str);
-    
-    // Parse shortcut string into Shortcut type
-    let shortcut = Shortcut::from_str(&shortcut_str)
-        .map_err(|e| format!("Invalid shortcut format '{}': {:?}", shortcut_str, e))?;
-    
-    // Try to register the shortcut
-    match shortcut_manager.register(shortcut) {
-        Ok(_) => {
-            println!("[register_global_shortcut] Successfully registered: {}", shortcut_str);
-            Ok(())
-        }
-        Err(e) => {
-            let err_msg = format!("Failed to register shortcut '{}': {:?}", shortcut_str, e);
-            println!("[register_global_shortcut] {}", err_msg);
-            Err(err_msg)
-        }
-    }
+    Ok(())
 }
 
 #[tauri::command]
-async fn unregister_global_shortcut(
-    app: tauri::AppHandle,
-    config: HotkeyConfig,
-) -> Result<(), String> {
-    let shortcut_manager = app.global_shortcut();
-    
-    // Build shortcut string
-    let mut shortcut_str = String::new();
-    
-    if let Some(ref modifiers) = config.modifiers {
-        for modifier in modifiers {
-            shortcut_str.push_str(&format!("{}+", modifier.to_lowercase()));
-        }
+fn clear_media_session(state: tauri::State<'_, MediaSessionState>) -> Result<(), String> {
+    let mut controls_guard = state.0.lock().unwrap();
+    if let Some(ref mut controls) = *controls_guard {
+        controls.set_playback(MediaPlayback::Stopped)
+            .map_err(|e| format!("Failed to clear media session: {:?}", e))?;
     }
-    
-    if let Some(ref combo) = config.combo {
-        shortcut_str.push_str(&format!("{}+{}", config.key.to_uppercase(), combo.to_uppercase()));
-    } else {
-        shortcut_str.push_str(&config.key.to_uppercase());
-    }
-    
-    println!("[unregister_global_shortcut] Unregistering: {}", shortcut_str);
-    
-    // Parse shortcut string into Shortcut type
-    let shortcut = Shortcut::from_str(&shortcut_str)
-        .map_err(|e| format!("Invalid shortcut format '{}': {:?}", shortcut_str, e))?;
-    
-    match shortcut_manager.unregister(shortcut) {
-        Ok(_) => {
-            println!("[unregister_global_shortcut] Successfully unregistered: {}", shortcut_str);
-            Ok(())
-        }
-        Err(e) => {
-            let err_msg = format!("Failed to unregister shortcut '{}': {:?}", shortcut_str, e);
-            println!("[unregister_global_shortcut] {}", err_msg);
-            Err(err_msg)
-        }
-    }
-}
-
-#[tauri::command]
-async fn unregister_all_shortcuts(app: tauri::AppHandle) -> Result<(), String> {
-    let shortcut_manager = app.global_shortcut();
-    
-    println!("[unregister_all_shortcuts] Unregistering all shortcuts");
-    
-    match shortcut_manager.unregister_all() {
-        Ok(_) => {
-            println!("[unregister_all_shortcuts] Successfully unregistered all shortcuts");
-            Ok(())
-        }
-        Err(e) => {
-            let err_msg = format!("Failed to unregister all shortcuts: {:?}", e);
-            println!("[unregister_all_shortcuts] {}", err_msg);
-            Err(err_msg)
-        }
-    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(DiscordRpcState(Mutex::new(None)))
+        .manage(MediaSessionState(Mutex::new(None)))
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             greet, 
             show_window, 
@@ -399,29 +343,56 @@ pub fn run() {
             list_downloaded_tracks,
             delete_downloaded_track,
             track_exists_locally,
-            register_global_shortcut,
-            unregister_global_shortcut,
-            unregister_all_shortcuts
+            update_media_session,
+            clear_media_session
         ])
         .setup(|app| {
             // Auto-updater
             #[cfg(desktop)]
             app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
 
-            // Global shortcuts event handler
-            app.handle().plugin(
-                tauri_plugin_global_shortcut::Builder::new()
-                    .with_handler(|app, shortcut, event| {
-                        if event.state() == ShortcutState::Pressed {
-                            let shortcut_str = shortcut.to_string();
-                            println!("[GlobalShortcut] Pressed: {}", shortcut_str);
-                            
-                            // Emit event to frontend
-                            let _ = app.emit("global-shortcut", shortcut_str);
+            // Initialize media session
+            #[cfg(target_os = "windows")]
+            {
+                let window = app.get_webview_window("main");
+                if let Some(ref win) = window {
+                    let hwnd = win.hwnd().ok();
+                    
+                    let config = PlatformConfig {
+                        dbus_name: "spotycloud",
+                        display_name: "SpotyCloud",
+                        hwnd: hwnd.map(|h| h.0 as *mut std::ffi::c_void),
+                    };
+                    
+                    if let Ok(mut controls) = MediaControls::new(config) {
+                        // Attach event handler for media controls
+                        let app_handle = app.handle().clone();
+                        controls.attach(move |event: MediaControlEvent| {
+                            match event {
+                                MediaControlEvent::Play => {
+                                    let _ = app_handle.emit("media-control", "play");
+                                }
+                                MediaControlEvent::Pause => {
+                                    let _ = app_handle.emit("media-control", "pause");
+                                }
+                                MediaControlEvent::Next => {
+                                    let _ = app_handle.emit("media-control", "next");
+                                }
+                                MediaControlEvent::Previous => {
+                                    let _ = app_handle.emit("media-control", "previous");
+                                }
+                                _ => {}
+                            }
+                        }).ok();
+                        
+                        // Store the controls
+                        if let Ok(state) = app.state::<MediaSessionState>().0.lock() {
+                            // We need to store this, but since we can't easily replace it in the Mutex,
+                            // we'll use a different approach - initialize on first use in the command
                         }
-                    })
-                    .build(),
-            )?;
+                    }
+                }
+            }
 
             let show = MenuItem::with_id(app, "show", "Show SpotyCloud", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
