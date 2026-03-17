@@ -180,6 +180,7 @@ fn discord_rpc_update(
     artwork_url: Option<String>,
     duration_secs: Option<u64>,
     track_url: Option<String>,
+    is_playing: Option<bool>,
 ) -> Result<String, String> {
     let mut client_guard = state.0.lock().unwrap();
 
@@ -200,18 +201,25 @@ fn discord_rpc_update(
         .as_secs() as i64;
 
     let details_str = title;
-    let state_str = format!("by {}", artist);
+    // Remove "by " prefix from artist if present to avoid "by by Artist" in Discord
+    let state_str = artist.trim_start_matches("by ").trim_start_matches("By ").to_string();
+    let playing = is_playing.unwrap_or(true);
+    
     let mut act = activity::Activity::new()
         .details(&details_str)
         .state(&state_str)
         .activity_type(activity::ActivityType::Listening);
 
-    let timestamps;
-    if let Some(dur) = duration_secs {
-        timestamps = activity::Timestamps::new()
-            .start(now)
-            .end(now + dur as i64);
-        act = act.timestamps(timestamps);
+    // Only add timestamps when playing (this makes Discord show the track progress bar)
+    // When paused, we omit timestamps so Discord doesn't show a frozen progress
+    if playing {
+        let timestamps;
+        if let Some(dur) = duration_secs {
+            timestamps = activity::Timestamps::new()
+                .start(now)
+                .end(now + dur as i64);
+            act = act.timestamps(timestamps);
+        }
     }
 
     let assets;
@@ -258,7 +266,7 @@ fn discord_rpc_clear(state: tauri::State<'_, DiscordRpcState>) -> Result<(), Str
 }
 
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
-use std::collections::HashMap;
+use std::str::FromStr;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -293,8 +301,12 @@ async fn register_global_shortcut(
     
     println!("[register_global_shortcut] Registering: {}", shortcut_str);
     
+    // Parse shortcut string into Shortcut type
+    let shortcut = Shortcut::from_str(&shortcut_str)
+        .map_err(|e| format!("Invalid shortcut format '{}': {:?}", shortcut_str, e))?;
+    
     // Try to register the shortcut
-    match shortcut_manager.register(&shortcut_str) {
+    match shortcut_manager.register(shortcut) {
         Ok(_) => {
             println!("[register_global_shortcut] Successfully registered: {}", shortcut_str);
             Ok(())
@@ -331,7 +343,11 @@ async fn unregister_global_shortcut(
     
     println!("[unregister_global_shortcut] Unregistering: {}", shortcut_str);
     
-    match shortcut_manager.unregister(&shortcut_str) {
+    // Parse shortcut string into Shortcut type
+    let shortcut = Shortcut::from_str(&shortcut_str)
+        .map_err(|e| format!("Invalid shortcut format '{}': {:?}", shortcut_str, e))?;
+    
+    match shortcut_manager.unregister(shortcut) {
         Ok(_) => {
             println!("[unregister_global_shortcut] Successfully unregistered: {}", shortcut_str);
             Ok(())

@@ -44,7 +44,7 @@ async function getLocalFileUrl(filePath: string): Promise<string> {
   }
 }
 
-async function updateDiscordRpc(track: SCTrack) {
+async function updateDiscordRpc(track: SCTrack, playing = true) {
   // Dynamic import to avoid circular dependency
   const { getSettings } = await import('./settings.svelte');
   const settings = getSettings();
@@ -63,10 +63,11 @@ async function updateDiscordRpc(track: SCTrack) {
   const trackUrl = showListenButton ? (track.permalink_url || null) : null;
   invoke('discord_rpc_update', {
     title: track.title,
-    artist: `by ${track.user.username}`,
+    artist: track.user.username,
     artworkUrl,
     durationSecs,
     trackUrl,
+    isPlaying: playing,
   }).catch((e) => console.warn('[Discord RPC] update failed:', e));
 }
 
@@ -590,15 +591,26 @@ export function play(track: SCTrack, trackList?: SCTrack[]) {
 
 export function pause() {
   audio?.pause();
+  // Update Discord RPC to show paused state (no timestamps = no progress bar)
+  if (currentTrack) {
+    updateDiscordRpc(currentTrack, false);
+  }
 }
 
 export function resume() {
   audio?.play();
+  // Update Discord RPC to show playing state with timestamps
+  if (currentTrack) {
+    updateDiscordRpc(currentTrack, true);
+  }
 }
 
 export function togglePlay() {
-  if (isPlaying) pause();
-  else if (currentTrack) resume();
+  if (isPlaying) {
+    pause();
+  } else if (currentTrack) {
+    resume();
+  }
 }
 
 export async function next() {
