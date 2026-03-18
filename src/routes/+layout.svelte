@@ -21,7 +21,7 @@
 import { initSettings } from '$lib/stores/settings.svelte';
 import { initAuthStorage } from '$lib/api/auth';
 import { listen } from '@tauri-apps/api/event';
-import { next, prev, togglePlay } from '$lib/stores/player.svelte';
+import { next, prev, togglePlay, restoreLastTrack } from '$lib/stores/player.svelte';
 
   interface Props {
     children: Snippet;
@@ -74,6 +74,9 @@ import { next, prev, togglePlay } from '$lib/stores/player.svelte';
     }
 
     storageReady = true;
+
+    // Restore last played track (without auto-playing)
+    restoreLastTrack();
 
     invoke('show_window');
   });

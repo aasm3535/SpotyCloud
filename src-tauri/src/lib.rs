@@ -202,6 +202,14 @@ fn format_position(position_secs: u64) -> String {
     format!("{}:{:02}", minutes, seconds)
 }
 
+fn format_repeat_suffix(repeat_mode: Option<&str>) -> Option<&'static str> {
+    match repeat_mode {
+        Some("one") => Some("Repeat One"),
+        Some("all") => Some("Repeat All"),
+        _ => None,
+    }
+}
+
 #[tauri::command]
 fn discord_rpc_update(
     state: tauri::State<'_, DiscordRpcState>,
@@ -212,6 +220,7 @@ fn discord_rpc_update(
     position_secs: Option<u64>,
     track_url: Option<String>,
     is_playing: Option<bool>,
+    repeat_mode: Option<String>,
 ) -> Result<String, String> {
     let mut client_guard = state.0.lock().unwrap();
     let playing = is_playing.unwrap_or(true);
@@ -222,6 +231,7 @@ fn discord_rpc_update(
     let artwork_url = artwork_url.filter(|url| !url.trim().is_empty());
     let track_url = track_url.filter(|url| !url.trim().is_empty());
     let position_secs = position_secs.unwrap_or(0);
+    let repeat_suffix = format_repeat_suffix(repeat_mode.as_deref());
 
     for attempt in 0..2 {
         if client_guard.is_none() {
@@ -233,16 +243,20 @@ fn discord_rpc_update(
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs() as i64;
-            let state_text = if let Some(ref artist_name) = artist {
-                Some(if playing {
-                    artist_name.clone()
-                } else {
-                    format!("{} - Paused at {}", artist_name, format_position(position_secs))
-                })
-            } else if !playing {
-                Some(format!("Paused at {}", format_position(position_secs)))
-            } else {
+            let mut state_parts: Vec<String> = Vec::new();
+            if let Some(ref artist_name) = artist {
+                state_parts.push(artist_name.clone());
+            }
+            if !playing {
+                state_parts.push(format!("Paused at {}", format_position(position_secs)));
+            }
+            if let Some(suffix) = repeat_suffix {
+                state_parts.push(suffix.to_string());
+            }
+            let state_text = if state_parts.is_empty() {
                 None
+            } else {
+                Some(sanitize_presence_text(&state_parts.join(" \u{00B7} "), 128))
             };
 
             let mut act = activity::Activity::new()
@@ -469,3 +483,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

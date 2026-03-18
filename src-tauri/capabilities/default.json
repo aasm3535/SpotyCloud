@@ -25,7 +25,8 @@
         { "url": "https://cf-hls-media.sndcdn.com/*" },
         { "url": "https://cf-hls-opus-media.sndcdn.com/*" },
         { "url": "https://cf-media.sndcdn.com/*" },
-        { "url": "https://lrclib.net/*" }
+        { "url": "https://lrclib.net/*" },
+        { "url": "https://symptom-lyrics.xn0tdev.workers.dev/*" }
       ]
     },
     "fs:allow-document-read-recursive",

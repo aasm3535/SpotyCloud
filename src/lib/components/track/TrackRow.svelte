@@ -223,6 +223,12 @@
     onclick={handleRowClick}
     ondblclick={handlePlay}
     oncontextmenu={handleContextMenu}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handlePlay();
+      }
+    }}
   >
     <!-- # / Play icon -->
     <div class="w-[40px] flex items-center justify-center shrink-0 text-center">

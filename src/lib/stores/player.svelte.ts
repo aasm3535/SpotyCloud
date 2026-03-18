@@ -5,7 +5,7 @@ import { readFile } from '@tauri-apps/plugin-fs';
 import { isTrackDownloaded, getTrackFilePath } from './downloads.svelte';
 import Hls from 'hls.js';
 import { connectAudio } from './equalizer.svelte';
-import { getRelatedTracks, searchTracks, getTrendingTracks } from '$lib/api/soundcloud';
+import { getRelatedTracks, searchTracks, getTrendingTracks, getTrack } from '$lib/api/soundcloud';
 import { getLikedTracks } from './liked.svelte';
 import { loadDataSync, saveData } from '$lib/utils/storage';
 import { getSavedPlayerState, savePlayerVolume, savePlayerShuffle, savePlayerRepeat, savePlayerLastTrack } from './settings.svelte';
@@ -51,8 +51,9 @@ async function updateDiscordRpc(track: SCTrack, playing = true, positionSecs?: n
   const settings = getSettings();
   const isEnabled = settings.discordRpcEnabled ?? true;
   const showListenButton = settings.discordShowListenButton ?? true;
+  const hideWhenPaused = settings.discordHideWhenPaused ?? false;
 
-  if (!isEnabled) {
+  if (!isEnabled || (!playing && hideWhenPaused)) {
     clearDiscordRpc();
     return;
   }
@@ -61,22 +62,48 @@ async function updateDiscordRpc(track: SCTrack, playing = true, positionSecs?: n
     ? track.artwork_url.replace('-large', '-t500x500')
     : null;
   const durationSecs = track.duration ? Math.round(track.duration / 1000) : null;
-  const resolvedPositionSecs = positionSecs ?? Math.max(0, Math.floor(audio?.currentTime ?? currentTime ?? 0));
+  const resolvedPositionSecs = getPlaybackPositionSecs(positionSecs);
   const trackUrl = showListenButton ? (track.permalink_url || null) : null;
-  invoke('discord_rpc_update', {
-    title: track.title,
-    artist: track.user.username,
-    artworkUrl,
-    durationSecs,
-    positionSecs: resolvedPositionSecs,
-    trackUrl,
-    isPlaying: playing,
-  }).catch((e) => console.warn('[Discord RPC] update failed:', e));
+  try {
+    await invoke('discord_rpc_update', {
+      title: track.title,
+      artist: track.user.username,
+      artworkUrl,
+      durationSecs,
+      positionSecs: resolvedPositionSecs,
+      trackUrl,
+      isPlaying: playing,
+      repeatMode,
+    });
+    lastDiscordRpcSync = {
+      trackId: track.id,
+      playing,
+      positionSecs: resolvedPositionSecs,
+      syncedAtMs: Date.now(),
+    };
+  } catch (e) {
+    console.warn('[Discord RPC] update failed:', e);
+  }
 }
 
 function clearDiscordRpc() {
+  lastDiscordRpcSync = null;
   invoke('discord_rpc_clear').catch((e) => console.warn('[Discord RPC] clear failed:', e));
   clearNativeMediaSession();
+}
+
+export async function syncDiscordRpc(force = false) {
+  if (!currentTrack) {
+    clearDiscordRpc();
+    return;
+  }
+
+  const positionSecs = getPlaybackPositionSecs();
+  if (!force && !shouldSyncDiscordRpc(currentTrack, isPlaying, positionSecs)) {
+    return;
+  }
+
+  await updateDiscordRpc(currentTrack, isPlaying, positionSecs);
 }
 
 // Load persisted player state
@@ -345,6 +372,60 @@ let audio: HTMLAudioElement | null = null;
 let hls: Hls | null = null;
 
 let rafId: number | null = null;
+const DISCORD_RPC_DRIFT_TOLERANCE_SECS = 3;
+
+type DiscordRpcSyncState = {
+  trackId: number;
+  playing: boolean;
+  positionSecs: number;
+  syncedAtMs: number;
+};
+
+let lastDiscordRpcSync: DiscordRpcSyncState | null = null;
+let discordRpcSyncQueued = false;
+let discordRpcForceSyncQueued = false;
+
+function getPlaybackPositionSecs(positionSecs?: number) {
+  return Math.max(0, Math.floor(positionSecs ?? audio?.currentTime ?? currentTime ?? 0));
+}
+
+function getExpectedDiscordRpcPositionSecs() {
+  if (!lastDiscordRpcSync) return null;
+
+  if (!lastDiscordRpcSync.playing) {
+    return lastDiscordRpcSync.positionSecs;
+  }
+
+  const elapsedSecs = (Date.now() - lastDiscordRpcSync.syncedAtMs) / 1000;
+  return lastDiscordRpcSync.positionSecs + elapsedSecs;
+}
+
+function shouldSyncDiscordRpc(track: SCTrack, playing: boolean, positionSecs: number) {
+  if (!lastDiscordRpcSync) return true;
+  if (lastDiscordRpcSync.trackId !== track.id) return true;
+  if (lastDiscordRpcSync.playing !== playing) return true;
+
+  const expectedPositionSecs = getExpectedDiscordRpcPositionSecs();
+  if (expectedPositionSecs === null) return true;
+
+  return Math.abs(positionSecs - expectedPositionSecs) >= DISCORD_RPC_DRIFT_TOLERANCE_SECS;
+}
+
+function queueDiscordRpcSync(force = false) {
+  if (force) {
+    discordRpcForceSyncQueued = true;
+  }
+
+  if (discordRpcSyncQueued) return;
+
+  discordRpcSyncQueued = true;
+  queueMicrotask(async () => {
+    const shouldForceSync = discordRpcForceSyncQueued;
+    discordRpcSyncQueued = false;
+    discordRpcForceSyncQueued = false;
+    await syncDiscordRpc(shouldForceSync);
+  });
+}
 
 function startTimeUpdates() {
   if (rafId) return;
@@ -372,9 +453,20 @@ function getOrCreateAudio(): HTMLAudioElement {
     audio.volume = volume;
     audio.addEventListener('timeupdate', () => {
       currentTime = audio!.currentTime;
+      if (currentTrack && shouldSyncDiscordRpc(currentTrack, !audio!.paused, getPlaybackPositionSecs(audio!.currentTime))) {
+        queueDiscordRpcSync();
+      }
     });
     audio.addEventListener('durationchange', () => {
       duration = audio!.duration;
+    });
+    audio.addEventListener('loadedmetadata', () => {
+      duration = audio!.duration;
+      queueDiscordRpcSync(true);
+    });
+    audio.addEventListener('seeked', () => {
+      currentTime = audio!.currentTime;
+      queueDiscordRpcSync(true);
     });
     audio.addEventListener('ended', () => {
       handleTrackEnd();
@@ -383,10 +475,12 @@ function getOrCreateAudio(): HTMLAudioElement {
     audio.addEventListener('play', () => { 
       isPlaying = true; 
       startTimeUpdates();
+      queueDiscordRpcSync();
     });
     audio.addEventListener('pause', () => { 
       isPlaying = false; 
       stopTimeUpdates();
+      queueDiscordRpcSync();
     });
     audio.addEventListener('error', (e) => {
       console.error('Audio error:', e);
@@ -406,6 +500,10 @@ function handleTrackEnd() {
   if (repeatMode === 'one') {
     const a = getOrCreateAudio();
     a.currentTime = 0;
+    currentTime = 0;
+    if (currentTrack) {
+      void updateDiscordRpc(currentTrack, true, 0);
+    }
     a.play();
     return;
   }
@@ -433,10 +531,12 @@ async function loadAndPlay(track: SCTrack) {
   isLoading = true;
   error = null;
   currentTrack = track;
+  currentTime = 0;
+  duration = 0;
   lastSavedTrackId = track.id;
   await savePlayerLastTrack(track.id);
   updateMediaSession();
-  await updateDiscordRpc(track);
+  await updateDiscordRpc(track, true, 0);
   await updateNativeMediaSession({
     title: track.title,
     artist: track.user.username,
@@ -604,7 +704,6 @@ export function play(track: SCTrack, trackList?: SCTrack[]) {
 export function pause() {
   audio?.pause();
   if (currentTrack) {
-    updateDiscordRpc(currentTrack, false, Math.floor(audio?.currentTime ?? currentTime ?? 0));
     updateNativeMediaSession({
       title: currentTrack.title,
       artist: currentTrack.user.username,
@@ -618,7 +717,6 @@ export function pause() {
 export function resume() {
   audio?.play();
   if (currentTrack) {
-    updateDiscordRpc(currentTrack, true, Math.floor(audio?.currentTime ?? currentTime ?? 0));
     updateNativeMediaSession({
       title: currentTrack.title,
       artist: currentTrack.user.username,
@@ -829,9 +927,6 @@ export function seek(time: number) {
   const a = getOrCreateAudio();
   a.currentTime = time;
   currentTime = time;
-  if (currentTrack) {
-    updateDiscordRpc(currentTrack, !a.paused, Math.floor(time));
-  }
 }
 
 export async function setVolume(v: number) {
@@ -866,6 +961,22 @@ export function removeFromQueue(index: number) {
 export function clearQueue() {
   queue = [];
   queueIndex = -1;
+}
+
+export async function restoreLastTrack() {
+  if (!lastSavedTrackId || currentTrack) return;
+  try {
+    const track = await getTrack(lastSavedTrackId);
+    if (track) {
+      currentTrack = track;
+      queue = [track];
+      queueIndex = 0;
+      // Don't auto-play, just show the track
+      updateMediaSession();
+    }
+  } catch (e) {
+    console.error('[Player] Failed to restore last track:', e);
+  }
 }
 
 export async function toggleShuffle() {

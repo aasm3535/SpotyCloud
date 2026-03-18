@@ -32,6 +32,12 @@ export interface SCTrack {
   created_at: string;
   streamable: boolean;
   access: string;
+  publisher_metadata?: {
+    artist?: string;
+    release_title?: string;
+    album_title?: string;
+    writer_composer?: string;
+  };
   media: {
     transcodings: SCTranscoding[];
   };

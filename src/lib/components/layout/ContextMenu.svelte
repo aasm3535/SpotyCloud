@@ -178,17 +178,20 @@
   >
     {#if menuType === 'track' && selectedTrack}
       <!-- Track Context Menu -->
-      <div class="custom-context-menu-item" onclick={handleToggleLike}>
+      <button class="custom-context-menu-item" onclick={handleToggleLike}>
         <Heart class="w-4 h-4 {isTrackLiked ? 'fill-[#1db954] text-[#1db954]' : ''}" />
         <span>{selection.selectedCount > 1 ? 'Add to Liked' : (isTrackLiked ? 'Remove from Liked' : 'Add to Liked')}</span>
-      </div>
+      </button>
       
       <div class="custom-context-menu-divider"></div>
       
-      <div 
+      <div
         class="custom-context-menu-item"
         onmouseenter={() => showPlaylistSubmenu = true}
         onmouseleave={() => showPlaylistSubmenu = false}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') showPlaylistSubmenu = !showPlaylistSubmenu; }}
+        role="button"
+        tabindex="0"
       >
         <ListMusic class="w-4 h-4" />
         <span>Add to Playlist</span>
@@ -197,12 +200,12 @@
         {#if showPlaylistSubmenu}
           <div class="custom-context-submenu">
             {#each playlists.list as playlist (playlist.id)}
-              <div 
+              <button
                 class="custom-context-menu-item"
                 onclick={() => handleAddToPlaylist(playlist.id)}
               >
                 <span>{playlist.name}</span>
-              </div>
+              </button>
             {/each}
             {#if playlists.list.length === 0}
               <div class="px-3 py-2 text-xs text-[#b3b3b3]">No playlists</div>
@@ -217,29 +220,29 @@
     {#if menuType === 'general'}
       <!-- General Context Menu -->
       {#if hasSelection}
-        <div class="custom-context-menu-item" onclick={copy}>
+        <button class="custom-context-menu-item" onclick={copy}>
           <Copy class="w-4 h-4" />
           <span>Copy</span>
           <span class="ml-auto text-[#6a6a6a] text-xs">Ctrl+C</span>
-        </div>
+        </button>
       {/if}
       
       {#if hasSelection}
         <div class="custom-context-menu-divider"></div>
       {/if}
       
-      <div class="custom-context-menu-item" onclick={selectAll}>
+      <button class="custom-context-menu-item" onclick={selectAll}>
         <span>Select All</span>
         <span class="ml-auto text-[#6a6a6a] text-xs">Ctrl+A</span>
-      </div>
+      </button>
       
       <div class="custom-context-menu-divider"></div>
     {/if}
     
-    <div class="custom-context-menu-item" onclick={reload}>
+    <button class="custom-context-menu-item" onclick={reload}>
       <RefreshCw class="w-4 h-4" />
       <span>Reload</span>
       <span class="ml-auto text-[#6a6a6a] text-xs">Ctrl+R</span>
-    </div>
+    </button>
   </div>
 {/if}

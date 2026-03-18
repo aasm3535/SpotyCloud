@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { resetOnboarding } from '$lib/stores/onboarding.svelte';
   import { getEqualizer, setBandGain, applyPreset, toggleEq, type PresetName } from '$lib/stores/equalizer.svelte';
-  import { getSettings, setAlwaysCollapsedSidebar, setCloseToTray, setDiscordRpcEnabled, setDiscordShowListenButton, setWaveTheme, setReactiveWave, setDisableCardHover, setLyricsGlow, setLyricsFontSize, setLyricsTextAlign } from '$lib/stores/settings.svelte';
+  import { getSettings, setAlwaysCollapsedSidebar, setCloseToTray, setDiscordRpcEnabled, setDiscordShowListenButton, setDiscordHideWhenPaused, setWaveTheme, setReactiveWave, setDisableCardHover, setLyricsGlow, setLyricsFontSize, setLyricsTextAlign } from '$lib/stores/settings.svelte';
   import { Check, Copy, AlertCircle, Music, ExternalLink, Terminal, MousePointer, Info, Link, RotateCcw, AudioLines, PanelLeftClose, MessageSquare, Palette, Settings2, MonitorDown, X, Activity } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
@@ -236,6 +236,25 @@
       </div>
 
       {#if appSettings.discordRpcEnabled}
+        <div class="setting-divider"></div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <X class="w-5 h-5 text-[#b3b3b3] shrink-0" />
+            <div>
+              <p class="setting-name">Hide RPC when paused</p>
+              <p class="setting-desc">Remove Discord activity while playback is paused and restore it on resume</p>
+            </div>
+          </div>
+          <button
+            onclick={() => setDiscordHideWhenPaused(!appSettings.discordHideWhenPaused)}
+            class="toggle {appSettings.discordHideWhenPaused ? 'on' : ''}"
+            aria-label="Toggle hide RPC when paused"
+          >
+            <div class="toggle-thumb"></div>
+          </button>
+        </div>
+
         <div class="setting-divider"></div>
 
         <div class="setting-row">

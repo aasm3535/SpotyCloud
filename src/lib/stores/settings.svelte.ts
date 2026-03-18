@@ -8,6 +8,7 @@ interface AppSettings {
   closeToTray: boolean;
   discordRpcEnabled: boolean;
   discordShowListenButton: boolean;
+  discordHideWhenPaused: boolean;
   waveTheme: string;
   reactiveWave: boolean;
   disableCardHover: boolean;
@@ -28,6 +29,7 @@ const defaults: AppSettings = {
   closeToTray: true,
   discordRpcEnabled: true,
   discordShowListenButton: true,
+  discordHideWhenPaused: false,
   waveTheme: 'default',
   reactiveWave: true,
   disableCardHover: false,
@@ -69,6 +71,7 @@ export function getSettings() {
     get closeToTray() { return settings.closeToTray; },
     get discordRpcEnabled() { return settings.discordRpcEnabled; },
     get discordShowListenButton() { return settings.discordShowListenButton; },
+    get discordHideWhenPaused() { return settings.discordHideWhenPaused; },
     get waveTheme() { return settings.waveTheme; },
     get reactiveWave() { return settings.reactiveWave; },
     get disableCardHover() { return settings.disableCardHover; },
@@ -115,11 +118,25 @@ export async function setAlwaysCollapsedSidebar(value: boolean) {
 export async function setDiscordRpcEnabled(value: boolean) {
   settings.discordRpcEnabled = value;
   await save();
+
+  const { syncDiscordRpc } = await import('./player.svelte');
+  await syncDiscordRpc();
 }
 
 export async function setDiscordShowListenButton(value: boolean) {
   settings.discordShowListenButton = value;
   await save();
+
+  const { syncDiscordRpc } = await import('./player.svelte');
+  await syncDiscordRpc();
+}
+
+export async function setDiscordHideWhenPaused(value: boolean) {
+  settings.discordHideWhenPaused = value;
+  await save();
+
+  const { syncDiscordRpc } = await import('./player.svelte');
+  await syncDiscordRpc();
 }
 
 export async function setCloseToTray(value: boolean) {

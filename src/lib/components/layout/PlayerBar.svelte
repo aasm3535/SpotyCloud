@@ -150,9 +150,9 @@
                 onclick={handleLike}
               >
                 {#if liked}
-                  <ThumbsUp class="w-[18px] h-[18px] fill-current" />
+                  <ThumbsUp class="w-[16.5px] h-[16.5px] fill-current" />
                 {:else}
-                  <ThumbsUp class="w-[18px] h-[18px]" />
+                  <ThumbsUp class="w-[16.5px] h-[16.5px]" />
                 {/if}
               </button>
               <button
@@ -160,7 +160,7 @@
                 title="Dislike — skip and don't recommend"
                 onclick={() => { if (player.currentTrack) waveDislike(player.currentTrack.id); }}
               >
-                <ThumbsDown class="w-[18px] h-[18px]" />
+                <ThumbsDown class="w-[16.5px] h-[16.5px]" />
               </button>
             {:else}
               <button
@@ -169,9 +169,9 @@
                 onclick={handleLike}
               >
                 {#if liked}
-                  <Heart class="w-[18px] h-[18px] fill-current" />
+                  <Heart class="w-[16.5px] h-[16.5px] fill-current" />
                 {:else}
-                  <Heart class="w-[18px] h-[18px]" />
+                  <Heart class="w-[16.5px] h-[16.5px]" />
                 {/if}
               </button>
             {/if}
@@ -294,7 +294,7 @@
       style:color={isLyricsPage ? '#1db954' : undefined}
       title={isLyricsPage ? 'Close lyrics' : 'Show lyrics'}
     >
-      <Mic2 class="w-4 h-4" />
+      <Mic2 class="w-[16.5px] h-[16.5px]" />
     </button>
 
     <!-- Sleep Timer -->
@@ -309,20 +309,22 @@
             {#if sleepTimer.isFading}
               <span class="text-[10px] font-bold">FADE</span>
             {:else}
-              <Timer class="w-4 h-4" />
+              <Timer class="w-[16.5px] h-[16.5px]" />
               <span class="absolute -top-1 -right-1 w-2 h-2 bg-[#1db954] rounded-full animate-pulse"></span>
             {/if}
           </div>
         {:else}
-          <Moon class="w-4 h-4" />
+          <Moon class="w-[16.5px] h-[16.5px]" />
         {/if}
       </button>
 
       {#if showSleepTimerMenu}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-        <div 
+        <div
           class="absolute bottom-full right-0 mb-2 bg-[#282828] rounded-lg shadow-xl p-2 min-w-[140px] z-50"
           onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          role="dialog"
+          tabindex="-1"
         >
           <div class="text-xs text-[#b3b3b3] px-3 py-2 font-medium">Sleep Timer</div>
           {#if sleepTimer.isActive}
@@ -354,11 +356,11 @@
             </button>
           {/if}
         </div>
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div 
-          class="fixed inset-0 z-40" 
+        <button
+          class="fixed inset-0 z-40 bg-transparent"
           onclick={() => showSleepTimerMenu = false}
-        ></div>
+          aria-label="Close sleep timer menu"
+        ></button>
       {/if}
     </div>
 
@@ -368,11 +370,11 @@
       title={player.volume > 0 ? 'Mute' : 'Unmute'}
     >
       {#if player.volume === 0}
-        <VolumeX class="w-4 h-4" />
+        <VolumeX class="w-[16.5px] h-[16.5px]" />
       {:else if player.volume < 0.5}
-        <Volume1 class="w-4 h-4" />
+        <Volume1 class="w-[16.5px] h-[16.5px]" />
       {:else}
-        <Volume2 class="w-4 h-4" />
+        <Volume2 class="w-[16.5px] h-[16.5px]" />
       {/if}
     </button>
 
