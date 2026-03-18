@@ -45,7 +45,7 @@ async function getLocalFileUrl(filePath: string): Promise<string> {
   }
 }
 
-async function updateDiscordRpc(track: SCTrack, playing = true) {
+async function updateDiscordRpc(track: SCTrack, playing = true, positionSecs?: number) {
   // Dynamic import to avoid circular dependency
   const { getSettings } = await import('./settings.svelte');
   const settings = getSettings();
@@ -61,12 +61,14 @@ async function updateDiscordRpc(track: SCTrack, playing = true) {
     ? track.artwork_url.replace('-large', '-t500x500')
     : null;
   const durationSecs = track.duration ? Math.round(track.duration / 1000) : null;
+  const resolvedPositionSecs = positionSecs ?? Math.max(0, Math.floor(audio?.currentTime ?? currentTime ?? 0));
   const trackUrl = showListenButton ? (track.permalink_url || null) : null;
   invoke('discord_rpc_update', {
     title: track.title,
     artist: track.user.username,
     artworkUrl,
     durationSecs,
+    positionSecs: resolvedPositionSecs,
     trackUrl,
     isPlaying: playing,
   }).catch((e) => console.warn('[Discord RPC] update failed:', e));
@@ -392,6 +394,7 @@ function getOrCreateAudio(): HTMLAudioElement {
       isPlaying = false;
       isLoading = false;
       stopTimeUpdates();
+      clearDiscordRpc();
     });
     // Connect to equalizer
     connectAudio(audio);
@@ -600,9 +603,8 @@ export function play(track: SCTrack, trackList?: SCTrack[]) {
 
 export function pause() {
   audio?.pause();
-  // Update Discord RPC to show paused state (no timestamps = no progress bar)
   if (currentTrack) {
-    updateDiscordRpc(currentTrack, false);
+    updateDiscordRpc(currentTrack, false, Math.floor(audio?.currentTime ?? currentTime ?? 0));
     updateNativeMediaSession({
       title: currentTrack.title,
       artist: currentTrack.user.username,
@@ -615,9 +617,8 @@ export function pause() {
 
 export function resume() {
   audio?.play();
-  // Update Discord RPC to show playing state with timestamps
   if (currentTrack) {
-    updateDiscordRpc(currentTrack, true);
+    updateDiscordRpc(currentTrack, true, Math.floor(audio?.currentTime ?? currentTime ?? 0));
     updateNativeMediaSession({
       title: currentTrack.title,
       artist: currentTrack.user.username,
@@ -828,6 +829,9 @@ export function seek(time: number) {
   const a = getOrCreateAudio();
   a.currentTime = time;
   currentTime = time;
+  if (currentTrack) {
+    updateDiscordRpc(currentTrack, !a.paused, Math.floor(time));
+  }
 }
 
 export async function setVolume(v: number) {
@@ -836,7 +840,7 @@ export async function setVolume(v: number) {
   await savePlayerVolume(volume);
 }
 
-let savedVolume = $state(volume);
+let savedVolume = $state(_saved.volume);
 
 export async function toggleMute() {
   if (volume > 0) {

@@ -174,84 +174,121 @@ async fn track_exists_locally(
 
 struct DiscordRpcState(Mutex<Option<DiscordIpcClient>>);
 
+const DISCORD_RPC_CLIENT_ID: &str = "1482449775747141682";
+
+fn create_discord_client() -> Result<DiscordIpcClient, String> {
+    let mut client = DiscordIpcClient::new(DISCORD_RPC_CLIENT_ID)
+        .map_err(|e| format!("Failed to create Discord IPC client: {}", e))?;
+    client
+        .connect()
+        .map_err(|e| format!("Failed to connect to Discord (is Discord running?): {}", e))?;
+    Ok(client)
+}
+
+fn sanitize_presence_text(value: &str, max_len: usize) -> String {
+    value
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect::<String>()
+        .trim()
+        .chars()
+        .take(max_len)
+        .collect()
+}
+
+fn format_position(position_secs: u64) -> String {
+    let minutes = position_secs / 60;
+    let seconds = position_secs % 60;
+    format!("{}:{:02}", minutes, seconds)
+}
+
 #[tauri::command]
 fn discord_rpc_update(
     state: tauri::State<'_, DiscordRpcState>,
     title: String,
-    artist: String,
+    artist: Option<String>,
     artwork_url: Option<String>,
     duration_secs: Option<u64>,
+    position_secs: Option<u64>,
     track_url: Option<String>,
     is_playing: Option<bool>,
 ) -> Result<String, String> {
     let mut client_guard = state.0.lock().unwrap();
-
-    // Try to connect if we don't have a client yet
-    if client_guard.is_none() {
-        let mut client = DiscordIpcClient::new("1482449775747141682")
-            .map_err(|e| format!("Failed to create Discord IPC client: {}", e))?;
-        client.connect()
-            .map_err(|e| format!("Failed to connect to Discord (is Discord running?): {}", e))?;
-        *client_guard = Some(client);
-    }
-
-    let client = client_guard.as_mut().unwrap();
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
-
-    let details_str = title;
-    // Remove "by " prefix from artist if present to avoid "by by Artist" in Discord
-    let state_str = artist.trim_start_matches("by ").trim_start_matches("By ").to_string();
     let playing = is_playing.unwrap_or(true);
-    
-    let mut act = activity::Activity::new()
-        .details(&details_str)
-        .state(&state_str)
-        .activity_type(activity::ActivityType::Listening);
+    let details = sanitize_presence_text(&title, 128);
+    let artist = artist
+        .map(|value| sanitize_presence_text(value.trim(), 128))
+        .filter(|value| !value.is_empty());
+    let artwork_url = artwork_url.filter(|url| !url.trim().is_empty());
+    let track_url = track_url.filter(|url| !url.trim().is_empty());
+    let position_secs = position_secs.unwrap_or(0);
 
-    // Only add timestamps when playing (this makes Discord show the track progress bar)
-    // When paused, we omit timestamps so Discord doesn't show a frozen progress
-    if playing {
-        let timestamps;
-        if let Some(dur) = duration_secs {
-            timestamps = activity::Timestamps::new()
-                .start(now)
-                .end(now + dur as i64);
-            act = act.timestamps(timestamps);
+    for attempt in 0..2 {
+        if client_guard.is_none() {
+            *client_guard = Some(create_discord_client()?);
+        }
+
+        if let Some(client) = client_guard.as_mut() {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64;
+            let state_text = if let Some(ref artist_name) = artist {
+                Some(if playing {
+                    artist_name.clone()
+                } else {
+                    format!("{} - Paused at {}", artist_name, format_position(position_secs))
+                })
+            } else if !playing {
+                Some(format!("Paused at {}", format_position(position_secs)))
+            } else {
+                None
+            };
+
+            let mut act = activity::Activity::new()
+                .details(&details)
+                .activity_type(activity::ActivityType::Listening);
+
+            if let Some(ref state_text) = state_text {
+                act = act.state(state_text);
+            }
+
+            if playing {
+                if let Some(dur) = duration_secs.filter(|dur| *dur > 0) {
+                    let safe_position = position_secs.min(dur);
+                    let start = now - safe_position as i64;
+                    let timestamps = activity::Timestamps::new()
+                        .start(start)
+                        .end(start + dur as i64);
+                    act = act.timestamps(timestamps);
+                }
+            }
+
+            let assets = if let Some(url) = artwork_url.as_deref() {
+                activity::Assets::new().large_image(url)
+            } else {
+                activity::Assets::new().large_image("spotycloud")
+            };
+            act = act.assets(assets);
+
+            if let Some(url) = track_url.as_deref() {
+                let buttons = vec![activity::Button::new("Open in SoundCloud", url)];
+                act = act.buttons(buttons);
+            }
+
+            match client.set_activity(act) {
+                Ok(_) => return Ok("Activity set".into()),
+                Err(e) => {
+                    *client_guard = None;
+                    if attempt == 1 {
+                        return Err(format!("Failed to set activity after reconnect: {}", e));
+                    }
+                }
+            }
         }
     }
 
-    let assets;
-    if let Some(ref url) = artwork_url {
-        assets = activity::Assets::new()
-            .large_image(url.as_str())
-            .large_text("SpotyCloud")
-            .small_image("spotycloud")
-            .small_text("Listening with SpotyCloud");
-    } else {
-        assets = activity::Assets::new()
-            .large_image("spotycloud")
-            .large_text("SpotyCloud");
-    }
-    act = act.assets(assets);
-
-    let buttons;
-    if let Some(ref url) = track_url {
-        buttons = vec![activity::Button::new("Listen on SoundCloud", url)];
-        act = act.buttons(buttons);
-    }
-
-    match client.set_activity(act) {
-        Ok(_) => Ok("Activity set".into()),
-        Err(e) => {
-            // Connection likely dropped, reset so next call reconnects
-            *client_guard = None;
-            Err(format!("Failed to set activity (will retry next track): {}", e))
-        }
-    }
+    Err("Discord RPC client is unavailable".into())
 }
 
 #[tauri::command]
@@ -386,7 +423,7 @@ pub fn run() {
                         }).ok();
                         
                         // Store the controls
-                        if let Ok(state) = app.state::<MediaSessionState>().0.lock() {
+                        if let Ok(_state) = app.state::<MediaSessionState>().0.lock() {
                             // We need to store this, but since we can't easily replace it in the Mutex,
                             // we'll use a different approach - initialize on first use in the command
                         }
